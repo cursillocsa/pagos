@@ -96,8 +96,9 @@ function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?
 
 function pintar(D){F=D;el('msg').textContent='';
  var h='';
- if(ULTIMO&&ULTIMO.id===D.id)h+='<div class="ok"><b>✅ Pago de '+gs(ULTIMO.monto)+' guardado en CAJA (fila '+ULTIMO.fila+').</b>'+
-  '<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div></div>';
+ if(ULTIMO&&ULTIMO.id===D.id)h+='<div class="ok">'+(ULTIMO.fila?'<b>✅ Pago de '+gs(ULTIMO.monto)+' guardado en CAJA (fila '+ULTIMO.fila+').</b>':'')+
+  (ULTIMO.perdon?'<div><b>✂️ Multa perdonada: '+gs(ULTIMO.perdon)+'</b> (anotada en AJUSTES).</div>':'')+
+  (ULTIMO.fila?'<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div>':'')+'</div>';
  h+='<div class="card"><p class="nom">'+esc(D.nombre)+'</p><div class="sub">'+esc(D.id)+' · '+esc(D.grupo||'sin grupo')+' · '+esc(D.situacion)+'</div>'+
   (D.plan?'<div class="sub">Plan: '+esc(D.plan)+'</div>':'')+
   '<div class="sub" style="font-size:13px">Celular: '+esc(D.cel||'–')+' · Responsable: '+esc(D.resp||'–')+' '+esc(D.celResp||'')+'</div>'+
@@ -105,7 +106,12 @@ function pintar(D){F=D;el('msg').textContent='';
   (D.multas>0?k('De eso, multas',gs(D.multas),'r'):'')+
   (D.impagas?k('Pagos vencidos',D.impagas):'')+
   k('Próximo vencimiento',D.prox?D.prox.venc+' · '+gs(D.prox.monto):'')+
-  (D.favor>0?k('Saldo a favor',gs(D.favor),'g'):'')+'</div>'+
+  (D.favor>0?k('Saldo a favor',gs(D.favor),'g'):'')+
+  (D.ultima?k('Última cuota',D.ultima.venc+' · '+gs(D.ultima.monto),D.ultima.dias<28&&D.ultima.completa?'y':''):'')+'</div>'+
+  (D.ultima&&D.ultima.dias<28?(D.ultima.completa
+   ?'<div class="y" style="border-radius:8px;padding:10px;margin-top:10px">⚠️ <b>Ojo con la última cuota:</b> vence el '+esc(D.ultima.venc)+' y el grupo termina el '+esc(D.ultima.fin)+
+    ', o sea que cubre solo <b>'+D.ultima.dias+' días</b>, y se está cobrando completa ('+gs(D.ultima.monto)+'). Si no corresponde, hay que poner ÚLTIMA CUOTA en GRUPOS o en la inscripción.</div>'
+   :'<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:10px">ℹ️ La última cuota (vence el '+esc(D.ultima.venc)+') cubre '+D.ultima.dias+' días y ya está reducida: '+gs(D.ultima.monto)+'.</div>'):'')+
   '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div></div>';
  // cuotas
  h+='<div class="card"><h2>📅 Cuotas</h2>';
@@ -142,7 +148,11 @@ function formPago(){
  var tipoDef=(o.tipo.filter(function(t){return /CUOTA|MATR/i.test(t);})[0])||'';
  var procDef=guardado('gaussSecProc')||(o.proc.filter(function(p){return sa(p)===sa(L.oficina);})[0])||'';
  var h='<form onsubmit="guardar(event)">'+
-  '<label>Monto (Gs.)</label><input id="mo" inputmode="numeric" value="'+(sug?Number(sug).toLocaleString('es-PY'):'')+'" oninput="fmt(this)">'+
+  (D.multas>0?'<div style="background:#fff2cc;border-radius:8px;padding:10px;margin-top:10px">'+
+   '<label style="margin:0"><input id="pm" type="checkbox" style="width:auto" onchange="perdonar()"> ✂️ Perdonar multa <span class="ayuda">(debe '+gs(D.multas)+' de multa)</span></label>'+
+   '<div id="pmBox" style="display:none"><div class="fila"><div><label>Multa a perdonar (Gs.)</label><input id="pmM" inputmode="numeric" value="'+Number(D.multas).toLocaleString('es-PY')+'" oninput="fmt(this);perdonar()"></div>'+
+   '<div><label>Autorizó <span class="ayuda">(opcional)</span></label><input id="pmA"></div></div></div></div>':'')+
+  '<label>Monto que paga (Gs.)</label><input id="mo" inputmode="numeric" value="'+(sug?Number(sug).toLocaleString('es-PY'):'')+'" oninput="fmt(this);MOTOCADO=true">'+
   '<div class="fila"><div><label>Fecha de carga <span class="ayuda">(día en que entra a la caja)</span></label><input id="f" type="date" value="'+hoyIso()+'" max="'+hoyIso()+'"></div>'+
   (hay.fechaPago?'<div><label>Fecha de pago <span class="ayuda">(vacía = la misma que la de carga)</span></label><input id="fp2" type="date" max="'+hoyIso()+'"></div>':'')+'</div>'+
   '<div class="fila">'+(hay.medio?'<div><label>Medio</label><select id="me">'+opts(o.medio,'',true)+'</select></div>':'')+
@@ -154,22 +164,27 @@ function formPago(){
   (hay.entregado?'<label style="font-weight:normal;margin-top:12px"><input id="en" type="checkbox" style="width:auto"> Comprobante ya entregado</label>':'')+
   (hay.obs?'<label>Observaciones <span class="ayuda">(opcional)</span></label><input id="ob">':'')+
   '<div style="margin-top:14px"><button class="btn" id="bg" type="submit">💾 Guardar pago</button></div><div id="fm"></div></form>';
- el('fp').innerHTML=h;el('mo').focus();
+ el('fp').innerHTML=h;MOTOCADO=false;el('mo').focus();
 }
 function val(id){var e=el(id);return e?e.value:'';}
+var MOTOCADO=false;
+function perdon(){return el('pm')&&el('pm').checked?num(val('pmM')):0;}
+function perdonar(){var on=el('pm').checked;el('pmBox').style.display=on?'block':'none';
+ if(!MOTOCADO&&F.deuda>0){var s=Math.max(0,F.deuda-perdon());el('mo').value=s?s.toLocaleString('es-PY'):'';}}
 function guardar(ev){ev.preventDefault();
- var D=F,monto=num(val('mo')),m=el('fm');
- if(!(monto>0)){m.innerHTML='<div class="err">Escribí el monto.</div>';return;}
- if(L.hay.medio&&!val('me')){m.innerHTML='<div class="err">Elegí el medio de pago.</div>';return;}
- if(L.hay.proc&&!val('pr')){m.innerHTML='<div class="err">Elegí PROCESADO EN.</div>';return;}
+ var D=F,monto=num(val('mo')),pd=perdon(),m=el('fm');
+ if(!(monto>0)&&!(pd>0)){m.innerHTML='<div class="err">Escribí el monto.</div>';return;}
+ if(pd>D.multas){m.innerHTML='<div class="err">No se puede perdonar más que la multa que debe ('+gs(D.multas)+').</div>';return;}
+ if(monto>0&&L.hay.medio&&!val('me')){m.innerHTML='<div class="err">Elegí el medio de pago.</div>';return;}
+ if(monto>0&&L.hay.proc&&!val('pr')){m.innerHTML='<div class="err">Elegí PROCESADO EN.</div>';return;}
  if(!val('f')){m.innerHTML='<div class="err">Falta la fecha de carga.</div>';return;}
  if(val('fp2')&&val('fp2')>val('f')){m.innerHTML='<div class="err">La fecha de pago no puede ser después de la fecha de carga.</div>';return;}
- if(!confirm('¿Registrar pago de '+gs(monto)+' de '+D.nombre+(val('me')?' ('+val('me')+')':'')+'?'))return;
+ if(!confirm(D.nombre+':\n'+(monto>0?'• Pago de '+gs(monto)+(val('me')?' ('+val('me')+')':'')+'\n':'')+(pd>0?'• Perdonar '+gs(pd)+' de multa\n':'')+'\n¿Confirmás?'))return;
  guardado('gaussSecCobro',val('co'));guardado('gaussSecProc',val('pr'));
  var b=el('bg');b.disabled=true;b.textContent='Guardando… (puede tardar unos 20 segundos)';m.innerHTML='';
  var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2')&&val('fp2')!==val('f')?val('fp2'):'',medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
-  tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
- pedir('pagar',d,function(r){ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto};ver(D.id,true);
+  tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),perdon:pd,autorizo:val('pmA'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
+ pedir('pagar',d,function(r){ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto,perdon:r.perdon||0};ver(D.id,true);
    cargarLista();},
   function(e){b.disabled=false;b.textContent='💾 Guardar pago';var t=String(e.message||e);
    if(t.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});
