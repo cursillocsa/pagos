@@ -95,10 +95,12 @@ function k(t,v,cl){return '<div class="k '+(cl||'')+'"><span>'+esc(t)+'</span><b
 function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?'r':(e==='Parcial'?'y':''));}
 
 function pintar(D){F=D;el('msg').textContent='';
+ if(L){var lx=L.alumnos.filter(function(y){return y[0]===D.id;})[0];if(lx)lx[4]=D.deuda;}
  var h='';
  if(ULTIMO&&ULTIMO.id===D.id&&ULTIMO.msg)h+='<div class="ok"><b>✅ '+esc(ULTIMO.msg)+'</b></div>';
  else if(ULTIMO&&ULTIMO.id===D.id)h+='<div class="ok">'+(ULTIMO.fila?'<b>✅ Pago de '+gs(ULTIMO.monto)+' guardado en CAJA (fila '+ULTIMO.fila+').</b>':'')+
   (ULTIMO.perdon?'<div><b>✂️ Multa perdonada: '+gs(ULTIMO.perdon)+'</b> (anotada en AJUSTES).</div>':'')+
+  '<div class="ayuda">La deuda de abajo ya incluye este pago. La hoja DEUDAS de la planilla se actualiza sola en 1 minuto.</div>'+
   (ULTIMO.fila?'<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div>':'')+'</div>';
  h+='<div class="card"><p class="nom">'+esc(D.nombre)+'</p><div class="sub">'+esc(D.id)+' · '+esc(D.grupo||'sin grupo')+' · '+esc(D.situacion)+'</div>'+
   (D.plan?'<div class="sub">Plan: '+esc(D.plan)+'</div>':'')+
@@ -185,8 +187,8 @@ function guardarUltima(){var D=F,modo=document.querySelector('input[name=um]:che
  var txt=modo==='grupo'?(v===''?'que la última cuota del grupo '+D.ultima.grupoNombre+' vuelva a ser completa':'la última cuota del grupo '+D.ultima.grupoNombre+' = '+(n<=100?n+'% de la cuota':gs(n)+' para todos'))
   :(v===''?'borrar el monto propio de la última cuota de '+D.nombre:'la última cuota de '+D.nombre+' = '+gs(n));
  if(!confirm('¿Confirmás '+txt+'?'))return;
- var b=el('bu');b.disabled=true;b.textContent='Guardando… (puede tardar unos 20 segundos)';
- pedir('ultima',{id:D.id,modo:modo,valor:v},function(r){ULTIMO={id:D.id,msg:r.msg};ver(D.id,true);cargarLista();},
+ var b=el('bu');b.disabled=true;b.textContent='Guardando…';
+ pedir('ultima',{id:D.id,modo:modo,valor:v},function(r){ULTIMO={id:D.id,msg:r.msg};ver(D.id,true);},
   function(e){b.disabled=false;b.textContent='💾 Guardar última cuota';var t=String(e.message||e);if(t.indexOf('PIN:')>=0){error(e);return;}el('um').innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});}
 var MOTOCADO=false;
 function perdon(){return el('pm')&&el('pm').checked?num(val('pmM')):0;}
@@ -202,11 +204,10 @@ function guardar(ev){ev.preventDefault();
  if(val('fp2')&&val('fp2')>val('f')){m.innerHTML='<div class="err">La fecha de pago no puede ser después de la fecha de carga.</div>';return;}
  if(!confirm(D.nombre+':\n'+(monto>0?'• Pago de '+gs(monto)+(val('me')?' ('+val('me')+')':'')+'\n':'')+(pd>0?'• Perdonar '+gs(pd)+' de multa\n':'')+'\n¿Confirmás?'))return;
  guardado('gaussSecCobro',val('co'));guardado('gaussSecProc',val('pr'));
- var b=el('bg');b.disabled=true;b.textContent='Guardando… (puede tardar unos 20 segundos)';m.innerHTML='';
+ var b=el('bg');b.disabled=true;b.textContent='Guardando…';m.innerHTML='';
  var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2')&&val('fp2')!==val('f')?val('fp2'):'',medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
   tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),perdon:pd,autorizo:val('pmA'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
- pedir('pagar',d,function(r){ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto,perdon:r.perdon||0};ver(D.id,true);
-   cargarLista();},
+ pedir('pagar',d,function(r){ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto,perdon:r.perdon||0};ver(D.id,true);},
   function(e){b.disabled=false;b.textContent='💾 Guardar pago';var t=String(e.message||e);
    if(t.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});
 }
