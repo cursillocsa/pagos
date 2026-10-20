@@ -58,8 +58,9 @@ function guardado(k,v){try{if(v===undefined)return localStorage.getItem(k)||'';l
 function pedir(acc,params,ok,mal){
  var q='accion='+acc+'&pin='+encodeURIComponent(PIN);
  for(var k in params)q+='&'+k+'='+encodeURIComponent(params[k]==null?'':params[k]);
+ var t0=Date.now();
  fetch(API+'?'+q,{credentials:'omit'}).then(function(r){return r.json();})
- .then(function(d){if(d&&d.error)mal({message:d.error});else ok(d);})
+ .then(function(d){if(d&&typeof d==='object')d._total=Date.now()-t0;if(d&&d.error)mal({message:d.error});else ok(d);})
  .catch(function(){mal({message:'No pude conectar con Administración. Revisá la conexión y probá de nuevo.'});});
 }
 function error(e){var m=String(e.message||e);
@@ -141,7 +142,8 @@ function pintar(D){F=D;el('msg').textContent='';
   D.ajustes.forEach(function(a){h+='<tr><td>'+esc(a.fecha)+'</td><td>'+esc(a.tipo)+(a.mes?' '+esc(a.mes):'')+'</td><td class="n">'+gs(a.monto)+'</td></tr>';});
   h+='</table>';}
  else h+='<div class="vacio">No tiene.</div>';
- h+='</div><div class="vacio" style="text-align:center;font-size:12px">Datos de Administración, al momento de abrir la ficha.</div>';
+ h+='</div><div class="vacio" style="text-align:center;font-size:12px">Datos de Administración, al momento de abrir la ficha.'+
+  (D._total?' Cargó en '+(D._total/1000).toFixed(1).replace('.',',')+' s'+(D._ms?' (servidor '+(D._ms/1000).toFixed(1).replace('.',',')+' s)':'')+'.':'')+'</div>';
  el('ficha').innerHTML=h;window.scrollTo(0,0);
 }
 
