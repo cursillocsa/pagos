@@ -142,9 +142,9 @@ function formPago(){
  var tipoDef=(o.tipo.filter(function(t){return /CUOTA|MATR/i.test(t);})[0])||'';
  var procDef=guardado('gaussSecProc')||(o.proc.filter(function(p){return sa(p)===sa(L.oficina);})[0])||'';
  var h='<form onsubmit="guardar(event)">'+
-  '<div class="fila"><div><label>Monto (Gs.)</label><input id="mo" inputmode="numeric" value="'+(sug?Number(sug).toLocaleString('es-PY'):'')+'" oninput="fmt(this)"></div>'+
-  '<div><label>Fecha de carga</label><input id="f" type="date" value="'+hoyIso()+'"></div></div>'+
-  (hay.fechaPago?'<label>Fecha de pago <span class="ayuda">(solo si pagó otro día, ej. una transferencia vieja)</span></label><input id="fp2" type="date">':'')+
+  '<label>Monto (Gs.)</label><input id="mo" inputmode="numeric" value="'+(sug?Number(sug).toLocaleString('es-PY'):'')+'" oninput="fmt(this)">'+
+  '<div class="fila"><div><label>Fecha de carga <span class="ayuda">(día en que entra a la caja)</span></label><input id="f" type="date" value="'+hoyIso()+'" max="'+hoyIso()+'"></div>'+
+  (hay.fechaPago?'<div><label>Fecha de pago <span class="ayuda">(vacía = la misma que la de carga)</span></label><input id="fp2" type="date" max="'+hoyIso()+'"></div>':'')+'</div>'+
   '<div class="fila">'+(hay.medio?'<div><label>Medio</label><select id="me">'+opts(o.medio,'',true)+'</select></div>':'')+
   (hay.tipo?'<div><label>Concepto</label><select id="ti">'+opts(o.tipo,tipoDef,true)+'</select></div>':'')+'</div>'+
   '<div class="fila">'+(hay.cobro?'<div><label>Cobró</label><select id="co">'+opts(o.cobro,guardado('gaussSecCobro'),true)+'</select></div>':'')+
@@ -162,11 +162,12 @@ function guardar(ev){ev.preventDefault();
  if(!(monto>0)){m.innerHTML='<div class="err">Escribí el monto.</div>';return;}
  if(L.hay.medio&&!val('me')){m.innerHTML='<div class="err">Elegí el medio de pago.</div>';return;}
  if(L.hay.proc&&!val('pr')){m.innerHTML='<div class="err">Elegí PROCESADO EN.</div>';return;}
+ if(!val('f')){m.innerHTML='<div class="err">Falta la fecha de carga.</div>';return;}
  if(val('fp2')&&val('fp2')>val('f')){m.innerHTML='<div class="err">La fecha de pago no puede ser después de la fecha de carga.</div>';return;}
  if(!confirm('¿Registrar pago de '+gs(monto)+' de '+D.nombre+(val('me')?' ('+val('me')+')':'')+'?'))return;
  guardado('gaussSecCobro',val('co'));guardado('gaussSecProc',val('pr'));
  var b=el('bg');b.disabled=true;b.textContent='Guardando… (puede tardar unos 20 segundos)';m.innerHTML='';
- var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2'),medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
+ var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2')&&val('fp2')!==val('f')?val('fp2'):'',medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
   tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
  pedir('pagar',d,function(r){ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto};ver(D.id,true);
    cargarLista();},
