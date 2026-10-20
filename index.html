@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Secretaría · Gauss</title>
+<style>
+:root{--rojo:#c0392b;--negro:#201e1e;--fondo:#f3f5f9;--verde:#1b8a3a;--borde:#e3e3e3}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--fondo);color:#222;font-size:15px}
+header{background:var(--negro);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5;border-bottom:4px solid var(--rojo)}
+header h1{margin:0 0 10px;font-size:19px}header h1 span{color:#ff6b5e}
+#q{width:100%;font-size:17px;padding:11px 12px;border:0;border-radius:8px}
+#res{background:#fff;border-radius:8px;margin-top:6px;max-height:60vh;overflow:auto;display:none;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+#res div{padding:11px 12px;border-bottom:1px solid #eee;color:#222;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+#res div:hover{background:#fdecea}#res small{color:#777}
+.badge{font-size:12px;font-weight:bold;padding:3px 8px;border-radius:10px;white-space:nowrap;align-self:center}
+.bR{background:#f4cccc;color:#990000}.bG{background:#d9ead3;color:#274e13}
+main{padding:12px 16px 60px;max-width:860px;margin:0 auto}
+.card{background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.card h2{margin:0 0 8px;font-size:15px;color:var(--rojo)}
+.nom{font-size:21px;font-weight:bold;margin:0}.sub{color:#555;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.k{background:var(--fondo);border-radius:8px;padding:8px}.k span{font-size:11px;color:#666;text-transform:uppercase}.k b{display:block;font-size:18px;margin-top:2px}
+.r{background:#f4cccc}.y{background:#fff2cc}.g{background:#d9ead3}
+table{width:100%;border-collapse:collapse;font-size:13px}th{background:var(--negro);color:#fff;text-align:left;padding:6px}
+td{padding:6px;border-bottom:1px solid #eee;vertical-align:top}.n{text-align:right;white-space:nowrap}
+.btn{display:block;width:100%;font-size:17px;padding:13px;background:var(--rojo);color:#fff;border:0;border-radius:10px;cursor:pointer;font-weight:bold}
+.btn:disabled{opacity:.6}.btn2{background:var(--negro)}
+.mini{font-size:12px;padding:4px 8px;border:1px solid #bbb;border-radius:6px;background:#fff;cursor:pointer}
+form label{display:block;font-weight:bold;margin-top:10px;font-size:13px}
+form input,form select{width:100%;font-size:16px;padding:9px;border:1px solid #ccc;border-radius:8px;margin-top:3px;background:#fff}
+.fila{display:flex;gap:10px}.fila>div{flex:1}
+@media(max-width:560px){.fila{flex-direction:column;gap:0}}
+.wa{display:inline-block;background:#25d366;color:#fff;text-decoration:none;padding:9px 14px;border-radius:18px;margin:8px 8px 0 0;font-weight:bold;font-size:14px}
+.wa.gr{background:#555}.wa.az{background:#1f4e79}
+.ok{background:#d9ead3;border-radius:10px;padding:12px;margin-bottom:12px}
+.err{color:var(--rojo);font-weight:bold;margin-top:8px}
+.vacio{color:#999;font-style:italic}
+#msg{color:#666;text-align:center;margin-top:30px}
+.ayuda{color:#777;font-size:12px;font-weight:normal}
+</style></head><body>
+<header><h1>💵 Secretaría <span>Gauss</span></h1>
+<input id="q" placeholder="Buscá al alumno por nombre, apellido o ID…" autocomplete="off" oninput="filtrar()">
+<div id="res"></div></header>
+<main><div id="ficha"></div><div id="msg">Cargando…</div></main>
+<script>
+var API='https://script.google.com/macros/s/AKfycbzPNqOlPMgP1lme__szBCxU4kzz7fSJ3PxLxUZu_CcywI5ftsESe6e7hL63z1Xp7M6U/exec';
+var PIN='';try{PIN=localStorage.getItem('gaussPinSec')||'';}catch(e){}
+var L=null,F=null,ULTIMO=null;
+function el(i){return document.getElementById(i);}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function sa(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function gs(n){n=Number(n)||0;return (n<0?'− ':'')+'Gs. '+Math.abs(Math.round(n)).toLocaleString('es-PY');}
+function num(s){return Number(String(s).replace(/[^0-9]/g,''))||0;}
+function fmt(i){var n=num(i.value);i.value=n?n.toLocaleString('es-PY'):'';}
+function hoyIso(){var d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+function guardado(k,v){try{if(v===undefined)return localStorage.getItem(k)||'';localStorage.setItem(k,v);}catch(e){return '';}}
+
+function pedir(acc,params,ok,mal){
+ var q='accion='+acc+'&pin='+encodeURIComponent(PIN);
+ for(var k in params)q+='&'+k+'='+encodeURIComponent(params[k]==null?'':params[k]);
+ fetch(API+'?'+q,{credentials:'omit'}).then(function(r){return r.json();})
+ .then(function(d){if(d&&d.error)mal({message:d.error});else ok(d);})
+ .catch(function(){mal({message:'No pude conectar con Administración. Revisá la conexión y probá de nuevo.'});});
+}
+function error(e){var m=String(e.message||e);
+ if(m.indexOf('PIN:')>=0){pedirPin(m.replace(/^.*PIN:\s*/,''));return;}
+ el('msg').innerHTML='<span class="err">⚠️ '+esc(m)+'</span>';}
+function pedirPin(m){
+ el('ficha').innerHTML='<div class="card" style="text-align:center"><h2>🔒 Panel de secretaría</h2>'+
+  '<div style="margin-bottom:10px;color:'+(m.indexOf('Ingres')===0?'#555':'#c0392b')+'">'+esc(m)+'</div>'+
+  '<input id="pin" type="password" placeholder="PIN" style="font-size:20px;padding:10px;width:170px;text-align:center;border:1px solid #ccc;border-radius:8px">'+
+  '<br><button onclick="entrar()" class="btn" style="width:auto;display:inline-block;margin-top:12px;padding:10px 28px">Entrar</button></div>';
+ el('msg').textContent='';var i=el('pin');i.focus();i.onkeydown=function(ev){if(ev.key==='Enter')entrar();};}
+function entrar(){PIN=el('pin').value.trim();guardado('gaussPinSec',PIN);el('ficha').innerHTML='';cargar();}
+
+function cargar(){el('msg').textContent='Cargando alumnos… (unos segundos)';
+ pedir('lista',{},function(d){L=d;el('msg').textContent=d.alumnos.length+' alumnos. Escribí arriba para buscar.';el('q').focus();},error);}
+cargar();
+
+function filtrar(){
+ var q=sa(el('q').value.trim()),r=el('res');
+ if(!L||q.length<2){r.style.display='none';return;}
+ var p=q.split(/\s+/),h=L.alumnos.filter(function(x){var t=sa(x[0]+' '+x[1]+' '+x[2]);return p.every(function(w){return t.indexOf(w)>=0;});}).slice(0,30);
+ r.innerHTML=h.length?h.map(function(x){return '<div onclick="ver(\''+esc(x[0])+'\')"><span>'+esc(x[1])+'<br><small>'+esc(x[0])+' · '+esc(x[2]||'sin grupo')+' · '+esc(x[3])+'</small></span>'+
+  '<span class="badge '+(x[4]>0?'bR':'bG')+'">'+(x[4]>0?'Debe '+gs(x[4]):'Al día')+'</span></div>';}).join(''):'<div class="vacio">No hay coincidencias</div>';
+ r.style.display='block';}
+
+function ver(id,mantener){
+ el('res').style.display='none';el('q').blur();
+ if(!mantener)ULTIMO=null;
+ el('ficha').innerHTML='';el('msg').textContent='Cargando… (unos segundos)';
+ pedir('ficha',{id:id},pintar,error);}
+
+function k(t,v,cl){return '<div class="k '+(cl||'')+'"><span>'+esc(t)+'</span><b>'+esc(v===''||v==null?'–':v)+'</b></div>';}
+function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?'r':(e==='Parcial'?'y':''));}
+
+function pintar(D){F=D;el('msg').textContent='';
+ var h='';
+ if(ULTIMO&&ULTIMO.id===D.id)h+='<div class="ok"><b>✅ Pago de '+gs(ULTIMO.monto)+' guardado en CAJA (fila '+ULTIMO.fila+').</b>'+
+  '<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div></div>';
+ h+='<div class="card"><p class="nom">'+esc(D.nombre)+'</p><div class="sub">'+esc(D.id)+' · '+esc(D.grupo||'sin grupo')+' · '+esc(D.situacion)+'</div>'+
+  (D.plan?'<div class="sub">Plan: '+esc(D.plan)+'</div>':'')+
+  '<div class="sub" style="font-size:13px">Celular: '+esc(D.cel||'–')+' · Responsable: '+esc(D.resp||'–')+' '+esc(D.celResp||'')+'</div>'+
+  '<div class="grid">'+k('Deuda vencida',D.deuda>0?gs(D.deuda):'Al día',D.deuda>0?'r':'g')+
+  (D.multas>0?k('De eso, multas',gs(D.multas),'r'):'')+
+  (D.impagas?k('Pagos vencidos',D.impagas):'')+
+  k('Próximo vencimiento',D.prox?D.prox.venc+' · '+gs(D.prox.monto):'')+
+  (D.favor>0?k('Saldo a favor',gs(D.favor),'g'):'')+'</div>'+
+  '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div></div>';
+ // cuotas
+ h+='<div class="card"><h2>📅 Cuotas</h2>';
+ if(D.cuotas.length){h+='<div style="overflow-x:auto"><table><tr><th>Concepto</th><th>Vence</th><th class="n">Monto</th><th class="n">Multa</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th></tr>';
+  D.cuotas.forEach(function(c){h+='<tr><td>'+esc(c.concepto)+'</td><td>'+esc(c.vence)+'</td><td class="n">'+gs(c.monto)+'</td><td class="n">'+(c.multa?gs(c.multa):'–')+'</td>'+
+   '<td class="n">'+(c.pagado?gs(c.pagado):'–')+'</td><td class="n">'+(c.saldo>0?gs(c.saldo):'–')+'</td><td class="'+colorEstado(c.estado)+'">'+esc(c.estado)+'</td></tr>';});
+  h+='</table></div><div class="sub" style="font-size:12px">Se muestran las cuotas vencidas y la próxima. "Pagado" incluye la multa pagada.</div>';}
+ else h+='<div class="vacio">No hay cuotas generadas.</div>';
+ h+='</div>';
+ // pagos
+ h+='<div class="card"><h2>💰 Pagos que ya hizo</h2>';
+ if(D.pagos.length){h+='<div style="overflow-x:auto"><table><tr><th>Fecha</th><th class="n">Monto</th><th>Medio</th><th>Concepto</th><th>Comprob.</th><th></th></tr>';
+  D.pagos.forEach(function(p,i){h+='<tr><td>'+esc(p.fecha)+(p.carga&&p.carga!==p.fecha?'<br><small style="color:#888">cargado '+esc(p.carga)+'</small>':'')+'</td>'+
+   '<td class="n">'+gs(p.monto)+'</td><td>'+esc(p.medio)+'</td><td>'+esc(p.tipo)+'</td><td>'+esc(p.comp)+'</td>'+
+   '<td><button class="mini" onclick="comp('+p.fila+',\''+esc(p.clave)+'\',\'cp'+i+'\',this)">🧾</button></td></tr>'+
+   '<tr><td colspan="6" id="cp'+i+'" style="border:0;padding:0"></td></tr>';});
+  h+='</table></div><div class="sub" style="font-size:12px">🧾 = generar el comprobante de ese pago.</div>';}
+ else h+='<div class="vacio">Todavía no hay pagos.</div>';
+ h+='</div>';
+ // ajustes
+ h+='<div class="card"><h2>✂️ Descuentos y ajustes</h2>';
+ if(D.ajustes.length){h+='<table><tr><th>Fecha</th><th>Tipo</th><th class="n">Monto</th></tr>';
+  D.ajustes.forEach(function(a){h+='<tr><td>'+esc(a.fecha)+'</td><td>'+esc(a.tipo)+(a.mes?' '+esc(a.mes):'')+'</td><td class="n">'+gs(a.monto)+'</td></tr>';});
+  h+='</table>';}
+ else h+='<div class="vacio">No tiene.</div>';
+ h+='</div><div class="vacio" style="text-align:center;font-size:12px">Datos de Administración, al momento de abrir la ficha.</div>';
+ el('ficha').innerHTML=h;window.scrollTo(0,0);
+}
+
+function opts(l,def,vacia){return (vacia?'<option value=""></option>':'')+l.map(function(x){return '<option'+(x===def?' selected':'')+'>'+esc(x)+'</option>';}).join('');}
+function formPago(){
+ var o=L.opciones,hay=L.hay,D=F;
+ var sug=D.deuda>0?D.deuda:(D.prox?D.prox.monto:0);
+ var tipoDef=(o.tipo.filter(function(t){return /CUOTA|MATR/i.test(t);})[0])||'';
+ var procDef=guardado('gaussSecProc')||(o.proc.filter(function(p){return sa(p)===sa(L.oficina);})[0])||'';
+ var h='<form onsubmit="guardar(event)">'+
+  '<div class="fila"><div><label>Monto (Gs.)</label><input id="mo" inputmode="numeric" value="'+(sug?Number(sug).toLocaleString('es-PY'):'')+'" oninput="fmt(this)"></div>'+
+  '<div><label>Fecha de carga</label><input id="f" type="date" value="'+hoyIso()+'"></div></div>'+
+  (hay.fechaPago?'<label>Fecha de pago <span class="ayuda">(solo si pagó otro día, ej. una transferencia vieja)</span></label><input id="fp2" type="date">':'')+
+  '<div class="fila">'+(hay.medio?'<div><label>Medio</label><select id="me">'+opts(o.medio,'',true)+'</select></div>':'')+
+  (hay.tipo?'<div><label>Concepto</label><select id="ti">'+opts(o.tipo,tipoDef,true)+'</select></div>':'')+'</div>'+
+  '<div class="fila">'+(hay.cobro?'<div><label>Cobró</label><select id="co">'+opts(o.cobro,guardado('gaussSecCobro'),true)+'</select></div>':'')+
+  (hay.proc?'<div><label>Procesado en</label><select id="pr">'+opts(o.proc,procDef,true)+'</select></div>':'')+'</div>'+
+  '<div class="fila">'+(hay.tipoComp?'<div><label>Comprobante</label><select id="tc">'+opts(o.tipoComp,'',true)+'</select></div>':'')+
+  (hay.comp?'<div><label>N° comprobante <span class="ayuda">(opcional)</span></label><input id="cm"></div>':'')+'</div>'+
+  (hay.entregado?'<label style="font-weight:normal;margin-top:12px"><input id="en" type="checkbox" style="width:auto"> Comprobante ya entregado</label>':'')+
+  (hay.obs?'<label>Observaciones <span class="ayuda">(opcional)</span></label><input id="ob">':'')+
+  '<div style="margin-top:14px"><button class="btn" id="bg" type="submit">💾 Guardar pago</button></div><div id="fm"></div></form>';
+ el('fp').innerHTML=h;el('mo').focus();
+}
+function val(id){var e=el(id);return e?e.value:'';}
+function guardar(ev){ev.preventDefault();
+ var D=F,monto=num(val('mo')),m=el('fm');
+ if(!(monto>0)){m.innerHTML='<div class="err">Escribí el monto.</div>';return;}
+ if(L.hay.medio&&!val('me')){m.innerHTML='<div class="err">Elegí el medio de pago.</div>';return;}
+ if(L.hay.proc&&!val('pr')){m.innerHTML='<div class="err">Elegí PROCESADO EN.</div>';return;}
+ if(val('fp2')&&val('fp2')>val('f')){m.innerHTML='<div class="err">La fecha de pago no puede ser después de la fecha de carga.</div>';return;}
+ if(!confirm('¿Registrar pago de '+gs(monto)+' de '+D.nombre+(val('me')?' ('+val('me')+')':'')+'?'))return;
+ guardado('gaussSecCobro',val('co'));guardado('gaussSecProc',val('pr'));
+ var b=el('bg');b.disabled=true;b.textContent='Guardando… (puede tardar unos 20 segundos)';m.innerHTML='';
+ var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2'),medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
+  tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
+ pedir('pagar',d,function(r){ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto};ver(D.id,true);
+   cargarLista();},
+  function(e){b.disabled=false;b.textContent='💾 Guardar pago';var t=String(e.message||e);
+   if(t.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});
+}
+function cargarLista(){pedir('lista',{},function(d){L=d;},function(){});}
+function comp(fila,clave,dest,btn){
+ btn.disabled=true;var txt=btn.textContent;btn.textContent='⏳';if(btn.classList.contains('btn'))btn.textContent='Generando… (unos segundos)';
+ pedir('comprobante',{fila:fila,clave:clave},function(r){btn.disabled=false;btn.textContent=txt;
+  el(dest).innerHTML='<div style="padding:8px 0">✅ <b>'+esc(r.numero)+'</b><br>'+
+   '<a class="wa az" href="'+esc(r.ver)+'" target="_blank">👁️ Ver PDF</a><a class="wa gr" href="'+esc(r.bajar)+'" target="_blank">⬇️ Descargar</a>'+
+   (r.waResp?'<a class="wa" href="'+esc(r.waResp)+'" target="_blank">📲 WhatsApp responsable</a>':'')+
+   (r.waAl?'<a class="wa" href="'+esc(r.waAl)+'" target="_blank">📲 WhatsApp alumno</a>':'')+
+   '<div class="ayuda" style="margin-top:6px">Descargá el PDF y adjuntalo en el chat que se abre.</div></div>';},
+  function(e){btn.disabled=false;btn.textContent=txt;var t=String(e.message||e);
+   if(t.indexOf('PIN:')>=0){error(e);return;}el(dest).innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});
+}
+</script></body></html>
