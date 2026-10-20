@@ -96,7 +96,8 @@ function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?
 
 function pintar(D){F=D;el('msg').textContent='';
  var h='';
- if(ULTIMO&&ULTIMO.id===D.id)h+='<div class="ok">'+(ULTIMO.fila?'<b>✅ Pago de '+gs(ULTIMO.monto)+' guardado en CAJA (fila '+ULTIMO.fila+').</b>':'')+
+ if(ULTIMO&&ULTIMO.id===D.id&&ULTIMO.msg)h+='<div class="ok"><b>✅ '+esc(ULTIMO.msg)+'</b></div>';
+ else if(ULTIMO&&ULTIMO.id===D.id)h+='<div class="ok">'+(ULTIMO.fila?'<b>✅ Pago de '+gs(ULTIMO.monto)+' guardado en CAJA (fila '+ULTIMO.fila+').</b>':'')+
   (ULTIMO.perdon?'<div><b>✂️ Multa perdonada: '+gs(ULTIMO.perdon)+'</b> (anotada en AJUSTES).</div>':'')+
   (ULTIMO.fila?'<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div>':'')+'</div>';
  h+='<div class="card"><p class="nom">'+esc(D.nombre)+'</p><div class="sub">'+esc(D.id)+' · '+esc(D.grupo||'sin grupo')+' · '+esc(D.situacion)+'</div>'+
@@ -110,8 +111,9 @@ function pintar(D){F=D;el('msg').textContent='';
   (D.ultima?k('Última cuota',D.ultima.venc+' · '+gs(D.ultima.monto),D.ultima.dias<28&&D.ultima.completa?'y':''):'')+'</div>'+
   (D.ultima&&D.ultima.dias<28?(D.ultima.completa
    ?'<div class="y" style="border-radius:8px;padding:10px;margin-top:10px">⚠️ <b>Ojo con la última cuota:</b> vence el '+esc(D.ultima.venc)+' y el grupo termina el '+esc(D.ultima.fin)+
-    ', o sea que cubre solo <b>'+D.ultima.dias+' días</b>, y se está cobrando completa ('+gs(D.ultima.monto)+'). Si no corresponde, hay que poner ÚLTIMA CUOTA en GRUPOS o en la inscripción.</div>'
-   :'<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:10px">ℹ️ La última cuota (vence el '+esc(D.ultima.venc)+') cubre '+D.ultima.dias+' días y ya está reducida: '+gs(D.ultima.monto)+'.</div>'):'')+
+    ', o sea que cubre solo <b>'+D.ultima.dias+' días</b>, y se está cobrando completa ('+gs(D.ultima.monto)+').'
+   :'<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:10px">ℹ️ La última cuota (vence el '+esc(D.ultima.venc)+') cubre '+D.ultima.dias+' días y ya está reducida: '+gs(D.ultima.monto)+'.')+
+   '<div style="margin-top:8px"><button class="mini" style="font-size:14px;padding:7px 12px" onclick="formUltima()">📅 Cambiar última cuota</button></div><div id="fu"></div></div>':'')+
   '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div></div>';
  // cuotas
  h+='<div class="card"><h2>📅 Cuotas</h2>';
@@ -167,6 +169,25 @@ function formPago(){
  el('fp').innerHTML=h;MOTOCADO=false;el('mo').focus();
 }
 function val(id){var e=el(id);return e?e.value:'';}
+function formUltima(){var u=F.ultima,prop=Math.round(u.cuota*u.dias/30/1000)*1000;
+ el('fu').innerHTML='<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px">'+
+  '<label style="display:block;margin-top:4px"><input type="radio" name="um" value="alumno" checked onchange="modoUltima()"> <b>Solo para este alumno</b></label>'+
+  '<label style="display:block;margin-top:6px"><input type="radio" name="um" value="grupo" onchange="modoUltima()"> <b>Para todo el grupo</b> '+esc(u.grupoNombre)+'</label>'+
+  '<div id="uA" style="margin-top:8px"><b style="font-size:13px">Monto de la última cuota (Gs.)</b>'+
+   '<input id="uMa" inputmode="numeric" value="'+prop.toLocaleString('es-PY')+'" oninput="fmt(this)" style="width:100%;font-size:16px;padding:9px;border:1px solid #ccc;border-radius:8px;margin-top:3px">'+
+   '<div class="ayuda">Proporcional a '+u.dias+' días de '+gs(u.cuota)+': '+gs(prop)+'. Vacío = se borra el monto propio y vale lo del grupo.</div></div>'+
+  '<div id="uG" style="margin-top:8px;display:none"><b style="font-size:13px">% de la cuota (ej. 50) o monto fijo (ej. 125.000)</b>'+
+   '<input id="uMg" inputmode="numeric" oninput="fmt(this)" style="width:100%;font-size:16px;padding:9px;border:1px solid #ccc;border-radius:8px;margin-top:3px">'+
+   '<div class="ayuda">Hasta 100 = porcentaje de la cuota de cada alumno. Más de 100 = el mismo monto para todos. Vacío = cuota completa. Los alumnos con monto propio no cambian.</div></div>'+
+  '<div style="margin-top:10px"><button class="btn" id="bu" onclick="guardarUltima()">💾 Guardar última cuota</button></div><div id="um"></div></div>';}
+function modoUltima(){var g=document.querySelector('input[name=um]:checked').value==='grupo';el('uA').style.display=g?'none':'block';el('uG').style.display=g?'block':'none';}
+function guardarUltima(){var D=F,modo=document.querySelector('input[name=um]:checked').value,v=modo==='grupo'?val('uMg'):val('uMa'),n=num(v);
+ var txt=modo==='grupo'?(v===''?'que la última cuota del grupo '+D.ultima.grupoNombre+' vuelva a ser completa':'la última cuota del grupo '+D.ultima.grupoNombre+' = '+(n<=100?n+'% de la cuota':gs(n)+' para todos'))
+  :(v===''?'borrar el monto propio de la última cuota de '+D.nombre:'la última cuota de '+D.nombre+' = '+gs(n));
+ if(!confirm('¿Confirmás '+txt+'?'))return;
+ var b=el('bu');b.disabled=true;b.textContent='Guardando… (puede tardar unos 20 segundos)';
+ pedir('ultima',{id:D.id,modo:modo,valor:v},function(r){ULTIMO={id:D.id,msg:r.msg};ver(D.id,true);cargarLista();},
+  function(e){b.disabled=false;b.textContent='💾 Guardar última cuota';var t=String(e.message||e);if(t.indexOf('PIN:')>=0){error(e);return;}el('um').innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});}
 var MOTOCADO=false;
 function perdon(){return el('pm')&&el('pm').checked?num(val('pmM')):0;}
 function perdonar(){var on=el('pm').checked;el('pmBox').style.display=on?'block':'none';
