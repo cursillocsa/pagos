@@ -41,7 +41,7 @@ form input,form select{width:100%;font-size:16px;padding:9px;border:1px solid #c
 <header><h1>💵 Secretaría <span>Gauss</span></h1>
 <input id="q" placeholder="Buscá al alumno por nombre, apellido o ID…" autocomplete="off" oninput="filtrar()">
 <div id="res"></div></header>
-<main><div id="ficha"></div><div id="msg">Cargando…</div></main>
+<main><div id="pend"></div><div id="ficha"></div><div id="msg">Cargando…</div></main>
 <script>
 var API='https://script.google.com/macros/s/AKfycbzPNqOlPMgP1lme__szBCxU4kzz7fSJ3PxLxUZu_CcywI5ftsESe6e7hL63z1Xp7M6U/exec';
 var PIN='';try{PIN=localStorage.getItem('gaussPinSec')||'';}catch(e){}
@@ -75,7 +75,15 @@ function pedirPin(m){
 function entrar(){PIN=el('pin').value.trim();guardado('gaussPinSec',PIN);el('ficha').innerHTML='';cargar();}
 
 function cargar(){el('msg').textContent='Cargando alumnos… (unos segundos)';
- pedir('lista',{},function(d){L=d;el('msg').textContent=d.alumnos.length+' alumnos. Escribí arriba para buscar.';el('q').focus();},error);}
+ pedir('lista',{},function(d){L=d;el('msg').textContent=d.alumnos.length+' alumnos. Escribí arriba para buscar.';el('q').focus();cargarPend();},error);}
+var PEND=null,ULTFAC='';
+function cargarPend(){pedir('pendFacturas',{},function(d){PEND=d.pend;ULTFAC=d.ultFactura||ULTFAC;pintarPend();},function(){});}
+function pintarPend(){var b=el('pend');if(!PEND||!PEND.length){b.innerHTML='';return;}
+ b.innerHTML='<div class="card y" style="cursor:pointer" onclick="var l=document.getElementById(\'pendL\');l.style.display=l.style.display===\'none\'?\'block\':\'none\';">'+
+  '<b>🧾 '+PEND.length+' pago'+(PEND.length>1?'s':'')+' con FACTURA sin número</b> <span class="ayuda">(tocá para ver)</span>'+
+  '<div id="pendL" style="display:none;margin-top:8px">'+PEND.map(function(x){return '<div style="padding:6px 0;border-top:1px solid #e8d9a8" onclick="event.stopPropagation();ver(\''+esc(x.id)+'\')">'+
+   esc(x.nombre)+' · '+esc(x.fecha)+' · '+gs(x.monto)+' <span style="color:#1155cc">→ abrir</span></div>';}).join('')+'</div></div>';}
+function sigFactura(u){var m=String(u||'').match(/^(\d{3}-\d{3}-)(\d+)$/);return m?m[1]+('0000000'+(Number(m[2])+1)).slice(-7):'';}
 cargar();
 
 function filtrar(){
@@ -130,10 +138,11 @@ function pintar(D){F=D;el('msg').textContent='';
  h+='<div class="card"><h2>💰 Pagos que ya hizo</h2>';
  if(D.pagos.length){h+='<div style="overflow-x:auto"><table><tr><th>Fecha</th><th class="n">Monto</th><th>Medio</th><th>Concepto</th><th>Comprob.</th><th></th></tr>';
   D.pagos.forEach(function(p,i){h+='<tr><td>'+esc(p.fecha)+(p.carga&&p.carga!==p.fecha?'<br><small style="color:#888">cargado '+esc(p.carga)+'</small>':'')+'</td>'+
-   '<td class="n">'+gs(p.monto)+'</td><td>'+esc(p.medio)+'</td><td>'+esc(p.tipo)+'</td><td>'+esc(p.comp)+'</td>'+
+   '<td class="n">'+gs(p.monto)+'</td><td>'+esc(p.medio)+'</td><td>'+esc(p.tipo)+'</td><td>'+(p.num?esc(p.comp):(sa(p.tipoComp)==='factura'?'<span style="color:#b7950b">FACTURA sin N°</span><br>':esc(p.tipoComp)+' ')+
+    '<button class="mini" onclick="formFactura('+i+')">➕ N° factura</button>')+'</td>'+
    '<td><button class="mini" onclick="comp('+p.fila+',\''+esc(p.clave)+'\',\'cp'+i+'\',this)">🧾</button></td></tr>'+
    '<tr><td colspan="6" id="cp'+i+'" style="border:0;padding:0"></td></tr>';});
-  h+='</table></div><div class="sub" style="font-size:12px">🧾 = generar el comprobante de ese pago.</div>';}
+  h+='</table></div><div class="sub" style="font-size:12px">🧾 = generar el comprobante interno de ese pago. ➕ N° factura = cargar el número de la factura hecha en el sistema de facturación.</div>';}
  else h+='<div class="vacio">Todavía no hay pagos.</div>';
  h+='</div>';
  // ajustes
@@ -165,14 +174,37 @@ function formPago(){
   (hay.tipo?'<div><label>Concepto</label><select id="ti">'+opts(o.tipo,tipoDef,true)+'</select></div>':'')+'</div>'+
   '<div class="fila">'+(hay.cobro?'<div><label>Cobró</label><select id="co">'+opts(o.cobro,guardado('gaussSecCobro'),true)+'</select></div>':'')+
   (hay.proc?'<div><label>Procesado en</label><select id="pr">'+opts(o.proc,procDef,true)+'</select></div>':'')+'</div>'+
-  '<div class="fila">'+(hay.tipoComp?'<div><label>Comprobante</label><select id="tc">'+opts(o.tipoComp,'',true)+'</select></div>':'')+
-  (hay.comp?'<div><label>N° comprobante <span class="ayuda">(opcional)</span></label><input id="cm"></div>':'')+'</div>'+
+  '<div class="fila">'+(hay.tipoComp?'<div><label>Comprobante</label><select id="tc" onchange="compCambio()">'+opts(o.tipoComp,'',true)+'</select></div>':'')+
+  (hay.comp?'<div id="dCm" style="display:none"><label id="lCm">N° comprobante</label><input id="cm"><div id="sCm" class="ayuda"></div></div>':'')+'</div>'+
   (hay.entregado?'<label style="font-weight:normal;margin-top:12px"><input id="en" type="checkbox" style="width:auto"> Comprobante ya entregado</label>':'')+
   (hay.obs?'<label>Observaciones <span class="ayuda">(opcional)</span></label><input id="ob">':'')+
   '<div style="margin-top:14px"><button class="btn" id="bg" type="submit">💾 Guardar pago</button></div><div id="fm"></div></form>';
  el('fp').innerHTML=h;MOTOCADO=false;el('mo').focus();
 }
 function val(id){var e=el(id);return e?e.value:'';}
+function compCambio(){var d=el('dCm');if(!d)return;var t=sa(val('tc'));
+ if(t==='factura'){d.style.display='block';el('lCm').innerHTML='N° de factura <span class="ayuda">(opcional: si todavía no la hiciste, después la cargás con ➕ N° factura)</span>';
+  var sg=sigFactura((F&&F.ultFactura)||ULTFAC);el('cm').placeholder=sg?'ej. '+sg:'ej. 001-001-0002656';
+  el('sCm').innerHTML=sg?'Última cargada: '+esc((F&&F.ultFactura)||ULTFAC)+'. Podés escribir solo los últimos números (ej. '+Number(sg.split('-')[2])+').':'';}
+ else if(t==='recibo'){d.style.display='block';el('lCm').innerHTML='N° de recibo <span class="ayuda">(opcional)</span>';el('cm').placeholder='';el('sCm').innerHTML='';}
+ else{d.style.display='none';el('cm').value='';}}
+function formFactura(i){var p=F.pagos[i],sg=sigFactura(F.ultFactura||ULTFAC);
+ el('cp'+i).innerHTML='<div style="background:#fff8e1;border-radius:8px;padding:10px;margin:4px 0">'+
+  '<b style="font-size:13px">N° de factura de este pago ('+gs(p.monto)+', '+esc(p.fecha)+')</b>'+
+  '<input id="fn'+i+'" placeholder="'+(sg?'ej. '+sg:'ej. 001-001-0002656')+'" style="width:100%;font-size:16px;padding:9px;border:1px solid #ccc;border-radius:8px;margin-top:4px">'+
+  '<div class="ayuda">'+(sg?'Última cargada: '+esc(F.ultFactura||ULTFAC)+'. Podés escribir solo los últimos números.':'Escribí el número completo, ej. 001-001-0002656.')+'</div>'+
+  '<label style="font-size:13px;display:block;margin-top:6px"><input id="fe'+i+'" type="checkbox"> Factura ya entregada</label>'+
+  '<button class="btn" style="margin-top:8px;font-size:15px;padding:10px" id="fb'+i+'" onclick="guardarFactura('+i+')">💾 Guardar N° de factura</button><div id="fm'+i+'"></div></div>';
+ el('fn'+i).focus();}
+function guardarFactura(i,forzar){var p=F.pagos[i],n=val('fn'+i).trim(),b=el('fb'+i);
+ if(!n){el('fm'+i).innerHTML='<div class="err">Escribí el número.</div>';return;}
+ b.disabled=true;b.textContent='Guardando…';
+ pedir('factura',{fila:p.fila,clave:p.clave,numero:n,entregado:el('fe'+i).checked?'1':'',forzar:forzar?'1':''},function(r){
+   ULTIMO={id:F.id,msg:'Factura N° '+r.numero+' guardada en CAJA (fila '+r.fila+').'};ver(F.id,true);cargarPend();},
+  function(e){b.disabled=false;b.textContent='💾 Guardar N° de factura';var t=String(e.message||e);
+   if(t.indexOf('PIN:')>=0){error(e);return;}
+   if(t.indexOf('REPETIDA:')===0){if(confirm(t.replace('REPETIDA: ','')+'\n\n¿Guardarlo igual?'))guardarFactura(i,true);return;}
+   el('fm'+i).innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});}
 function formUltima(){var u=F.ultima,prop=Math.round(u.cuota*u.dias/30/1000)*1000;
  el('fu').innerHTML='<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px">'+
   '<label style="display:block;margin-top:4px"><input type="radio" name="um" value="alumno" checked onchange="modoUltima()"> <b>Solo para este alumno</b></label>'+
@@ -196,7 +228,8 @@ var MOTOCADO=false;
 function perdon(){return el('pm')&&el('pm').checked?num(val('pmM')):0;}
 function perdonar(){var on=el('pm').checked;el('pmBox').style.display=on?'block':'none';
  if(!MOTOCADO&&F.deuda>0){var s=Math.max(0,F.deuda-perdon());el('mo').value=s?s.toLocaleString('es-PY'):'';}}
-function guardar(ev){ev.preventDefault();
+var FORZAR=false;
+function guardar(ev){if(ev)ev.preventDefault();
  var D=F,monto=num(val('mo')),pd=perdon(),m=el('fm');
  if(!(monto>0)&&!(pd>0)){m.innerHTML='<div class="err">Escribí el monto.</div>';return;}
  if(pd>D.multas){m.innerHTML='<div class="err">No se puede perdonar más que la multa que debe ('+gs(D.multas)+').</div>';return;}
@@ -204,14 +237,16 @@ function guardar(ev){ev.preventDefault();
  if(monto>0&&L.hay.proc&&!val('pr')){m.innerHTML='<div class="err">Elegí PROCESADO EN.</div>';return;}
  if(!val('f')){m.innerHTML='<div class="err">Falta la fecha de carga.</div>';return;}
  if(val('fp2')&&val('fp2')>val('f')){m.innerHTML='<div class="err">La fecha de pago no puede ser después de la fecha de carga.</div>';return;}
- if(!confirm(D.nombre+':\n'+(monto>0?'• Pago de '+gs(monto)+(val('me')?' ('+val('me')+')':'')+'\n':'')+(pd>0?'• Perdonar '+gs(pd)+' de multa\n':'')+'\n¿Confirmás?'))return;
+ if(!FORZAR&&!confirm(D.nombre+':\n'+(monto>0?'• Pago de '+gs(monto)+(val('me')?' ('+val('me')+')':'')+'\n':'')+(pd>0?'• Perdonar '+gs(pd)+' de multa\n':'')+'\n¿Confirmás?'))return;
  guardado('gaussSecCobro',val('co'));guardado('gaussSecProc',val('pr'));
  var b=el('bg');b.disabled=true;b.textContent='Guardando…';m.innerHTML='';
  var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2')&&val('fp2')!==val('f')?val('fp2'):'',medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
-  tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),perdon:pd,autorizo:val('pmA'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
- pedir('pagar',d,function(r){ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto,perdon:r.perdon||0};ver(D.id,true);},
+  tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),forzar:FORZAR?'1':'',perdon:pd,autorizo:val('pmA'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
+ pedir('pagar',d,function(r){FORZAR=false;ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto,perdon:r.perdon||0};cargarPend();ver(D.id,true);},
   function(e){b.disabled=false;b.textContent='💾 Guardar pago';var t=String(e.message||e);
-   if(t.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});
+   if(t.indexOf('PIN:')>=0){error(e);return;}
+   if(t.indexOf('REPETIDA:')===0){if(confirm(t.replace('REPETIDA: ','')+'\n\n¿Guardar el pago igual?')){FORZAR=true;guardar(null);}return;}
+   FORZAR=false;m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});
 }
 function cargarLista(){pedir('lista',{},function(d){L=d;},function(){});}
 function comp(fila,clave,dest,btn){
