@@ -145,6 +145,12 @@ function pintar(D){F=D;el('msg').textContent='';
   h+='</table></div><div class="sub" style="font-size:12px">🧾 = generar el comprobante interno de ese pago. ➕ N° factura = cargar el número de la factura hecha en el sistema de facturación.</div>';}
  else h+='<div class="vacio">Todavía no hay pagos.</div>';
  h+='</div>';
+ // anotaciones (las que escriben en DEUDAS → ✍️ ANOTACIÓN)
+ h+='<div class="card"><h2>📝 Anotaciones</h2>';
+ if(D.anotaciones&&D.anotaciones.length){h+='<table><tr><th>Fecha</th><th>Anotación</th></tr>';
+  D.anotaciones.forEach(function(c){h+='<tr><td style="white-space:nowrap">'+esc(c.fecha)+'</td><td>'+esc(c.obs)+'</td></tr>';});h+='</table>';}
+ else h+='<div class="vacio">Sin anotaciones.</div>';
+ h+='</div>';
  // ajustes
  h+='<div class="card"><h2>✂️ Descuentos y ajustes</h2>';
  if(D.ajustes.length){h+='<table><tr><th>Fecha</th><th>Tipo</th><th class="n">Monto</th></tr>';
