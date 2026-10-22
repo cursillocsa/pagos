@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Secretaría · Gauss</title>
+<title>Pagos · Gauss</title>
 <style>
 :root{--rojo:#c0392b;--negro:#201e1e;--fondo:#f3f5f9;--verde:#1b8a3a;--borde:#e3e3e3}
 *{box-sizing:border-box}
@@ -38,7 +38,7 @@ form input,form select{width:100%;font-size:16px;padding:9px;border:1px solid #c
 #msg{color:#666;text-align:center;margin-top:30px}
 .ayuda{color:#777;font-size:12px;font-weight:normal}
 </style></head><body>
-<header><h1>💵 Secretaría <span>Gauss</span></h1>
+<header><h1>💵 Pagos <span>Gauss</span></h1>
 <input id="q" placeholder="Buscá al alumno por nombre, apellido o ID…" autocomplete="off" oninput="filtrar()">
 <div id="res"></div></header>
 <main><div id="pend"></div><div id="ficha"></div><div id="msg">Cargando…</div></main>
@@ -67,7 +67,7 @@ function error(e){var m=String(e.message||e);
  if(m.indexOf('PIN:')>=0){pedirPin(m.replace(/^.*PIN:\s*/,''));return;}
  el('msg').innerHTML='<span class="err">⚠️ '+esc(m)+'</span>';}
 function pedirPin(m){
- el('ficha').innerHTML='<div class="card" style="text-align:center"><h2>🔒 Panel de secretaría</h2>'+
+ el('ficha').innerHTML='<div class="card" style="text-align:center"><h2>🔒 Pagos</h2>'+
   '<div style="margin-bottom:10px;color:'+(m.indexOf('Ingres')===0?'#555':'#c0392b')+'">'+esc(m)+'</div>'+
   '<input id="pin" type="password" placeholder="PIN" style="font-size:20px;padding:10px;width:170px;text-align:center;border:1px solid #ccc;border-radius:8px">'+
   '<br><button onclick="entrar()" class="btn" style="width:auto;display:inline-block;margin-top:12px;padding:10px 28px">Entrar</button></div>';
