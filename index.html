@@ -7,7 +7,8 @@
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--fondo);color:#222;font-size:15px}
 header{background:var(--negro);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5;border-bottom:4px solid var(--rojo)}
-header h1{margin:0 0 10px;font-size:19px}header h1 span{color:#ff6b5e}
+header h1{margin:0 0 10px;font-size:19px;display:flex;align-items:center;gap:10px}header h1 b{flex:1;font-size:19px}
+#bInicio{display:none;background:#444;color:#fff;border:0;border-radius:8px;padding:7px 12px;font-size:14px;cursor:pointer;font-weight:bold}header h1 span{color:#ff6b5e}
 #q{width:100%;font-size:17px;padding:11px 12px;border:0;border-radius:8px}
 #res{background:#fff;border-radius:8px;margin-top:6px;max-height:60vh;overflow:auto;display:none;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 #res div{padding:11px 12px;border-bottom:1px solid #eee;color:#222;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
@@ -38,7 +39,7 @@ form input,form select{width:100%;font-size:16px;padding:9px;border:1px solid #c
 #msg{color:#666;text-align:center;margin-top:30px}
 .ayuda{color:#777;font-size:12px;font-weight:normal}
 </style></head><body>
-<header><h1>💵 Pagos <span>Gauss</span></h1>
+<header><h1><b>💵 Pagos <span>Gauss</span></b><button id="bInicio" onclick="aInicio()">🏠 Inicio</button></h1>
 <input id="q" placeholder="Buscá al alumno por nombre, apellido o ID…" autocomplete="off" oninput="filtrar()">
 <div id="res"></div></header>
 <main><div id="pend"></div><div id="ficha"></div><div id="msg">Cargando…</div></main>
@@ -94,8 +95,11 @@ function filtrar(){
   '<span class="badge '+(x[4]>0?'bR':'bG')+'">'+(x[4]>0?'Debe '+gs(x[4]):'Al día')+'</span></div>';}).join(''):'<div class="vacio">No hay coincidencias</div>';
  r.style.display='block';}
 
+// 🏠 Inicio: borra de la pantalla la ficha del alumno (deudas, pagos, datos)
+function aInicio(){F=null;ULTIMO=null;el('ficha').innerHTML='';el('q').value='';el('res').style.display='none';el('bInicio').style.display='none';
+ el('msg').textContent=L?L.alumnos.length+' alumnos. Escribí arriba para buscar.':'';pintarPend();window.scrollTo(0,0);el('q').focus();}
 function ver(id,mantener){
- el('res').style.display='none';el('q').blur();
+ el('res').style.display='none';el('q').blur();el('bInicio').style.display='inline-block';
  if(!mantener)ULTIMO=null;
  el('ficha').innerHTML='';el('msg').textContent='Cargando… (unos segundos)';
  pedir('ficha',{id:id},pintar,error);}
