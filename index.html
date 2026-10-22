@@ -125,7 +125,8 @@ function pintar(D){F=D;el('msg').textContent='';
     ', o sea que cubre solo <b>'+D.ultima.dias+' días</b>, y se está cobrando completa ('+gs(D.ultima.monto)+').'
    :'<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:10px">ℹ️ La última cuota (vence el '+esc(D.ultima.venc)+') cubre '+D.ultima.dias+' días y ya está reducida: '+gs(D.ultima.monto)+'.')+
    '<div style="margin-top:8px"><button class="mini" style="font-size:14px;padding:7px 12px" onclick="formUltima()">📅 Cambiar última cuota</button></div><div id="fu"></div></div>':'')+
-  '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div></div>';
+  '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div>'+
+  '<div style="margin-top:8px"><button class="btn btn2" style="font-size:15px;padding:10px" onclick="formAjuste()">✂️ Ajuste (descuento, perdón de cuota o multa…)</button></div><div id="fa"></div></div>';
  // cuotas
  h+='<div class="card"><h2>📅 Cuotas</h2>';
  if(D.cuotas.length){h+='<div style="overflow-x:auto"><table><tr><th>Concepto</th><th>Vence</th><th class="n">Monto</th><th class="n">Multa</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th></tr>';
@@ -189,6 +190,28 @@ function formPago(){
  el('fp').innerHTML=h;MOTOCADO=false;el('mo').focus();
 }
 function val(id){var e=el(id);return e?e.value:'';}
+// ---- ✂️ ajustes (van a la hoja AJUSTES)
+function formAjuste(){var tipos=(L.opciones.ajustes&&L.opciones.ajustes.length)?L.opciones.ajustes:['Descuento','Perdón de cuota','Perdón de multa','Recargo','Otro'];
+ var meses=F.cuotas.map(function(c){var m=String(c.concepto).match(/Cuota\s+([a-z]{3}-\d{4})/i);return m?m[1]:'';}).filter(function(x,i,a){return x&&a.indexOf(x)===i;});
+ el('fa').innerHTML='<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:8px">'+
+  '<label>Tipo de ajuste</label><select id="aT" onchange="ajTipo()">'+opts(tipos,'',true)+'</select>'+
+  '<div id="aMesD" style="display:none"><label>¿De qué cuota?</label><select id="aMes">'+opts(meses,'',true)+'</select>'+
+   '<div class="ayuda">Si la cuota no aparece, es porque todavía no venció: esperá a que esté en la lista.</div></div>'+
+  '<label id="aML">Monto (Gs.)</label><input id="aM" inputmode="numeric" oninput="fmt(this)">'+
+  '<div class="fila"><div><label>Motivo</label><input id="aMo"></div><div><label>Autorizó</label><input id="aA"></div></div>'+
+  '<button class="btn" id="aB" style="margin-top:10px" onclick="guardarAjuste()">💾 Guardar ajuste</button><div id="aMsg"></div></div>';}
+function ajTipo(){var t=sa(val('aT')),pc=t.indexOf('perdon de cuota')===0,ds=t.indexOf('descuento')===0;
+ el('aMesD').style.display=pc||ds?'block':'none';
+ el('aML').innerHTML='Monto (Gs.)'+(pc?' <span class="ayuda">(vacío = la cuota entera)</span>':(ds?' <span class="ayuda">(si elegís la cuota, se descuenta de esa)</span>':''));}
+function guardarAjuste(){var t=val('aT'),m=el('aMsg'),monto=num(val('aM')),mes=el('aMesD').style.display==='block'?val('aMes'):'';
+ if(!t){m.innerHTML='<div class="err">Elegí el tipo.</div>';return;}
+ if(sa(t).indexOf('perdon de cuota')===0&&!mes){m.innerHTML='<div class="err">Elegí de qué cuota.</div>';return;}
+ if(!monto&&sa(t).indexOf('perdon de cuota')!==0){m.innerHTML='<div class="err">Falta el monto.</div>';return;}
+ if(!confirm(F.nombre+':\n'+t+(mes?' de la cuota '+mes:'')+(monto?' por '+gs(monto):' (cuota entera)')+'\n\n¿Confirmás?'))return;
+ var b=el('aB');b.disabled=true;b.textContent='Guardando…';
+ pedir('ajuste',{id:F.id,tipo:t,monto:monto||'',mes:mes,motivo:val('aMo'),autorizo:val('aA'),nonce:Date.now()+'-'+Math.random().toString(36).slice(2)},
+  function(r){ULTIMO={id:F.id,msg:r.msg+' La deuda se actualiza en 1 minuto.'};ver(F.id,true);},
+  function(e){b.disabled=false;b.textContent='💾 Guardar ajuste';var x=String(e.message||e);if(x.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(x)+'</div>';});}
 // ---- datos de facturación (ALUMNOS → RUC, RAZÓN SOCIAL, CORREO FACTURA)
 function copiar(t,b){try{navigator.clipboard.writeText(t);var x=b.textContent;b.textContent='✓';setTimeout(function(){b.textContent=x;},1200);}catch(e){}}
 function cajaFact(k){var f=(F&&F.fact)||{};if(!f.hay)return '<div class="ayuda" style="margin-top:8px">Para guardar RUC y razón social, agregá las columnas RUC, RAZÓN SOCIAL y CORREO FACTURA en ALUMNOS.</div>';
