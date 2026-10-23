@@ -116,6 +116,8 @@ function pintar(D){F=D;el('msg').textContent='';
   '<div class="ayuda">La deuda de abajo ya incluye este pago. La hoja DEUDAS de la planilla se actualiza sola en 1 minuto.</div>'+
   (ULTIMO.fila?'<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div>':'')+'</div>';
  h+='<div class="card"><p class="nom">'+esc(D.nombre)+'</p><div class="sub">'+esc(D.id)+' · '+esc(D.grupo||'sin grupo')+' · '+esc(D.situacion)+'</div>'+
+  (D.inicioGauss?'<div class="sub">📅 En Gauss desde el <b>'+esc(D.inicioGauss)+'</b>'+(D.recorrido&&D.recorrido.length>1&&D.inicioGrupo&&D.inicioGrupo!==D.inicioGauss?' · en '+esc(D.grupo)+' desde el '+esc(D.inicioGrupo):'')+'</div>':'')+
+  (D.recorrido&&D.recorrido.length>1?'<div class="sub" style="font-size:13px">Grupos: '+D.recorrido.map(function(r){return esc(r.grupo)+' ('+esc(r.inicio||'?')+(r.salida?' → '+esc(r.salida):'')+')';}).join(' · ')+'</div>':'')+
   (D.plan?'<div class="sub">Plan: '+esc(D.plan)+'</div>':'')+
   '<div class="sub" style="font-size:13px">Celular: '+esc(D.cel||'–')+' · Responsable: '+esc(D.resp||'–')+' '+esc(D.celResp||'')+'</div>'+
   '<div class="grid">'+k('Deuda vencida',D.deuda>0?gs(D.deuda):'Al día',D.deuda>0?'r':'g')+
