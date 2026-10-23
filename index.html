@@ -105,7 +105,7 @@ function ver(id,mantener){
  pedir('ficha',{id:id},pintar,error);}
 
 function k(t,v,cl){return '<div class="k '+(cl||'')+'"><span>'+esc(t)+'</span><b>'+esc(v===''||v==null?'–':v)+'</b></div>';}
-function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?'r':(e==='Parcial'?'y':''));}
+function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?'r':(e==='Parcial'||e==='En espera'?'y':''));}
 
 function pintar(D){F=D;el('msg').textContent='';
  if(L){var lx=L.alumnos.filter(function(y){return y[0]===D.id;})[0];if(lx)lx[4]=D.deuda;}
@@ -131,8 +131,10 @@ function pintar(D){F=D;el('msg').textContent='';
     ', o sea que cubre solo <b>'+D.ultima.dias+' días</b>, y se está cobrando completa ('+gs(D.ultima.monto)+').'
    :'<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:10px">ℹ️ La última cuota (vence el '+esc(D.ultima.venc)+') cubre '+D.ultima.dias+' días y ya está reducida: '+gs(D.ultima.monto)+'.')+
    '<div style="margin-top:8px"><button class="mini" style="font-size:14px;padding:7px 12px" onclick="formUltima()">📅 Cambiar última cuota</button></div><div id="fu"></div></div>':'')+
+  cartelesEspera()+
   '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div>'+
-  '<div style="margin-top:8px"><button class="btn btn2" style="font-size:15px;padding:10px" onclick="formAjuste()">✂️ Ajuste (descuento, perdón de cuota o multa…)</button></div><div id="fa"></div></div>';
+  '<div style="margin-top:8px"><button class="btn btn2" style="font-size:15px;padding:10px" onclick="formAjuste()">✂️ Ajuste (descuento, perdón de cuota o multa…)</button></div><div id="fa"></div>'+
+  '<div style="margin-top:8px"><button class="btn" style="font-size:15px;padding:10px;background:#b7950b" onclick="formEspera()">⏳ Espera de cuotas (sin multa hasta una fecha)</button></div><div id="fe"></div></div>';
  // cuotas
  h+='<div class="card"><h2>📅 Cuotas</h2>';
  if(D.cuotas.length){h+='<div style="overflow-x:auto"><table><tr><th>Concepto</th><th>Vence</th><th class="n">Monto</th><th class="n">Multa</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th></tr>';
@@ -197,6 +199,46 @@ function formPago(){
 }
 function val(id){var e=el(id);return e?e.value:'';}
 // ---- ✂️ ajustes (van a la hoja AJUSTES)
+// ---- ⏳ ESPERA DE CUOTAS
+function cartelesEspera(){var E=(F&&F.esperas)||[];if(!E.length)return '';
+ var act=E.filter(function(e){return /^Vigente|^Vencida/.test(e.estado);}),otras=E.filter(function(e){return !/^Vigente|^Vencida/.test(e.estado);});
+ var h=act.map(function(e){var venc=/^Vencida/.test(e.estado);
+  return '<div class="'+(venc?'r':'y')+'" style="border-radius:8px;padding:10px;margin-top:10px">'+(venc?'⚠️ <b>Venció la espera</b> ('+esc(e.motivo)+'): ':'⏳ <b>En espera de cuotas</b> ('+esc(e.motivo)+'): ')+
+   'cuotas <b>'+esc(e.desde)+(e.hasta!==e.desde?' a '+esc(e.hasta):'')+'</b> '+(venc?'tenían que pagarse hasta el '+esc(e.limite)+'. Ya corren las multas desde su vencimiento.':'sin multa si paga hasta el <b>'+esc(e.limite)+'</b>.')+
+   (e.obs?'<div class="ayuda" style="margin-top:4px">'+esc(e.obs)+'</div>':'')+'<div class="ayuda">Anotado el '+esc(e.fecha)+(e.quien?' por '+esc(e.quien):'')+'</div>'+
+   '<div style="margin-top:8px"><button class="mini" onclick="formExtender('+e.fila+')">📅 Extender espera</button> <button class="mini" style="background:#666" onclick="anularEspera('+e.fila+')">✖ Anular</button></div><div id="fx'+e.fila+'"></div></div>';}).join('');
+ if(otras.length)h+='<div class="ayuda" style="margin-top:8px;cursor:pointer" onclick="var x=this.nextSibling;x.style.display=x.style.display===\'none\'?\'block\':\'none\'">📜 Esperas anteriores ('+otras.length+') · tocá para ver</div><div style="display:none">'+
+  otras.map(function(e){return '<div style="font-size:13px;border-top:1px solid #eee;padding:5px 0">'+esc(e.fecha)+' · '+esc(e.motivo)+' · cuotas '+esc(e.desde)+(e.hasta!==e.desde?' a '+esc(e.hasta):'')+' · hasta '+esc(e.limite)+' · <b>'+esc(e.estado)+'</b>'+
+   (e.hist?'<div class="ayuda" style="white-space:pre-line">'+esc(e.hist)+'</div>':'')+'</div>';}).join('')+'</div>';
+ return h;}
+function mesDeConcepto(c){var m=String(c).match(/Cuota\s+([a-z]{3})-(\d{4})/i);if(!m)return '';var i=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'].indexOf(m[1].toLowerCase());return i<0?'':m[2]+'-'+('0'+(i+1)).slice(-2);}
+function formEspera(){var M=F.mesesCuotas||[],ve=F.cuotas.filter(function(c){return c.estado==='Vencido';}),d=ve.length?mesDeConcepto(ve[0].concepto):'';
+ var hoy=new Date(),actual=hoy.getFullYear()+'-'+('0'+(hoy.getMonth()+1)).slice(-2);if(!d)d=actual;
+ var op=function(sel){return M.map(function(m){return '<option value="'+m.v+'"'+(m.v===sel?' selected':'')+'>'+esc(m.t)+'</option>';}).join('');};
+ el('fe').innerHTML='<form onsubmit="return false" style="background:#fff8e1;border-radius:8px;padding:10px;margin-top:8px">'+
+  '<div class="ayuda">Las cuotas elegidas <b>no generan multa</b> si las paga hasta la fecha. Si no paga a tiempo, las multas corren normal desde el vencimiento de cada cuota.</div>'+
+  '<label>Motivo</label><select id="eMo">'+opts(F.motivosEspera||['Beca Itaipú','Otro'],'Beca Itaipú',true)+'</select>'+
+  '<div class="fila"><div><label>Desde la cuota de</label><select id="eD">'+op(d)+'</select></div><div><label>Hasta la cuota de</label><select id="eH">'+op(d>actual?d:actual)+'</select></div></div>'+
+  '<label>Esperar hasta</label><input type="date" id="eL">'+
+  '<div class="fila"><div><label>Anotado por</label><input id="eQ" value="'+esc(guardado('gaussSecQuien'))+'"></div><div><label>Observación</label><input id="eO" placeholder="ej. dijo que se desembolsa a fin de mes"></div></div>'+
+  '<button class="btn" id="eB" style="margin-top:10px;background:#b7950b" onclick="guardarEspera()">⏳ Guardar espera</button><div id="eMsg"></div></form>';}
+function guardarEspera(){var m=el('eMsg');
+ if(!val('eL')){m.innerHTML='<div class="err">Elegí hasta qué fecha se le espera.</div>';return;}
+ if(val('eH')<val('eD')){m.innerHTML='<div class="err">"Hasta la cuota de" no puede ser antes que "desde".</div>';return;}
+ var tx=function(id){var s=el(id);return s.options[s.selectedIndex].text;};
+ if(!confirm(F.nombre+':\n'+val('eMo')+'\nCuotas '+tx('eD')+(val('eH')!==val('eD')?' a '+tx('eH'):'')+' sin multa si paga hasta el '+val('eL').split('-').reverse().join('/')+'\n\n¿Confirmás?'))return;
+ guardado('gaussSecQuien',val('eQ'));var b=el('eB');b.disabled=true;b.textContent='Guardando…';
+ pedir('esperaNueva',{id:F.id,motivo:val('eMo'),desde:val('eD'),hasta:val('eH'),limite:val('eL'),quien:val('eQ'),obs:val('eO')},
+  function(r){ULTIMO={id:F.id,msg:r.msg+' La deuda se actualiza en 1 minuto.'};ver(F.id,true);},
+  function(e){b.disabled=false;b.textContent='⏳ Guardar espera';var x=String(e.message||e);if(x.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(x)+'</div>';});}
+function formExtender(fila){el('fx'+fila).innerHTML='<form onsubmit="return false"><div class="fila" style="margin-top:8px"><div><label>Nueva fecha</label><input type="date" id="xL'+fila+'"></div><div><label>Motivo</label><input id="xO'+fila+'" placeholder="ej. la beca se atrasó"></div></div>'+
+  '<button class="mini" id="xB'+fila+'" style="margin-top:8px" onclick="extender('+fila+')">💾 Extender</button><div id="xM'+fila+'"></div></form>';}
+function extender(fila){var L=val('xL'+fila),m=el('xM'+fila);if(!L){m.innerHTML='<div class="err">Elegí la nueva fecha.</div>';return;}
+ var b=el('xB'+fila);b.disabled=true;b.textContent='Guardando…';
+ pedir('esperaExtender',{id:F.id,fila:fila,limite:L,obs:val('xO'+fila),quien:guardado('gaussSecQuien')},function(r){ULTIMO={id:F.id,msg:r.msg};ver(F.id,true);},
+  function(e){b.disabled=false;b.textContent='💾 Extender';m.innerHTML='<div class="err">⚠️ '+esc(String(e.message||e))+'</div>';});}
+function anularEspera(fila){if(!confirm('¿Anular esta espera?\nEsas cuotas vuelven a generar multa desde su vencimiento.'))return;
+ pedir('esperaAnular',{id:F.id,fila:fila,quien:guardado('gaussSecQuien')},function(r){ULTIMO={id:F.id,msg:r.msg};ver(F.id,true);},function(e){alert('⚠️ '+(e.message||e));});}
 function formAjuste(){var tipos=(L.opciones.ajustes&&L.opciones.ajustes.length)?L.opciones.ajustes:['Descuento','Perdón de cuota','Perdón de multa','Recargo','Otro'];
  var meses=F.cuotas.map(function(c){var m=String(c.concepto).match(/Cuota\s+([a-z]{3}-\d{4})/i);return m?m[1]:'';}).filter(function(x,i,a){return x&&a.indexOf(x)===i;});
  el('fa').innerHTML='<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:8px">'+
