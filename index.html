@@ -338,7 +338,8 @@ function guardar(ev){if(ev)ev.preventDefault();
  var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2')&&val('fp2')!==val('f')?val('fp2'):'',medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
   tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),forzar:FORZAR?'1':'',
   factRuc:sa(val('tc'))==='factura'?(factCambios('pf').ruc||''):'',factRazon:sa(val('tc'))==='factura'?(factCambios('pf').razon||''):'',factCorreo:sa(val('tc'))==='factura'?(factCambios('pf').correo||''):'',perdon:pd,autorizo:val('pmA'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
- pedir('pagar',d,function(r){FORZAR=false;ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto,perdon:r.perdon||0};cargarPend();ver(D.id,true);},
+ pedir('pagar',d,function(r){FORZAR=false;ULTIMO={id:D.id,fila:r.fila,clave:r.clave,monto:monto,perdon:r.perdon||0};
+   if(r.ficha&&r.ficha.id===D.id){el('msg').textContent='';pintar(r.ficha);setTimeout(cargarPend,1500);}else{cargarPend();ver(D.id,true);}},
   function(e){b.disabled=false;b.textContent='💾 Guardar pago';var t=String(e.message||e);
    if(t.indexOf('PIN:')>=0){error(e);return;}
    if(t.indexOf('REPETIDA:')===0){if(confirm(t.replace('REPETIDA: ','')+'\n\n¿Guardar el pago igual?')){FORZAR=true;guardar(null);}return;}
