@@ -131,7 +131,7 @@ function ver(id,mantener){
  sbLeer('pagosFicha',id,function(d,t){
    if(n!==VER_N)return;
    pintar(d);
-   el('ficha').insertAdjacentHTML('afterbegin','<div id="sbMarca" class="ayuda" style="margin:-4px 0 8px">⚡ Copia rápida ('+esc(haceCuanto(t))+') · confirmando con la planilla…</div>');
+   el('ficha').insertAdjacentHTML('afterbegin','<div id="sbMarca" class="ayuda" style="margin:-4px 0 8px">⚡ Vista rápida · confirmando con la planilla…</div>');
    pedir('ficha',{id:id},function(D){
      if(n!==VER_N)return;
      if(estable(D)===estable(F)){F.ultFactura=D.ultFactura;marca('✅ Confirmado con la planilla');setTimeout(function(){marca('');},2500);return;}
@@ -139,7 +139,7 @@ function ver(id,mantener){
      F.ultFactura=D.ultFactura;NUEVO=D;
      marca('<span style="color:#b45f06;font-weight:bold">🔄 La planilla tiene datos más nuevos.</span> <button class="mini" onclick="var y=window.scrollY;pintar(NUEVO);window.scrollTo(0,y);">Actualizar</button>');
    },function(e){if(n!==VER_N)return;if(String(e.message||'').indexOf('PIN:')>=0){error(e);return;}
-     marca('<span style="color:#c0392b">⚠️ No se pudo confirmar con la planilla (se ve la copia rápida).</span>');});
+     marca('<span style="color:#c0392b">⚠️ No se pudo confirmar con la planilla (se ve la vista rápida).</span>');});
  },function(){if(n===VER_N){el('msg').textContent='Cargando… (unos segundos)';dePlanilla();}});}
 // si la secretaria empieza a tocar la ficha (abrir un formulario, escribir), no se la redibuja sola
 el('ficha').addEventListener('input',function(){TOCADO=true;});
