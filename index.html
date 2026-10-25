@@ -100,7 +100,8 @@ function cargar(){el('msg').textContent='Cargando alumnos…';
    pedir('lista',{},function(d2){L=d2;if(el('res').style.display==='block')filtrar();},function(e){if(String(e.message||'').indexOf('PIN:')>=0)error(e);});},
   function(){pedir('lista',{},function(d){L=d;listo();},error);});}
 var PEND=null,ULTFAC='';
-function cargarPend(){pedir('pendFacturas',{},function(d){PEND=d.pend;ULTFAC=d.ultFactura||ULTFAC;pintarPend();},function(){});}
+function cargarPend(){var ap=function(d){PEND=d.pend;ULTFAC=d.ultFactura||ULTFAC;pintarPend();},pl=function(){pedir('pendFacturas',{},ap,function(){});};
+ sbLeer('pagosPend','todo',function(d){ap(d);pl();},pl);}
 function pintarPend(){var b=el('pend');if(!PEND||!PEND.length){b.innerHTML='';return;}
  b.innerHTML='<div class="card y" style="cursor:pointer" onclick="var l=document.getElementById(\'pendL\');l.style.display=l.style.display===\'none\'?\'block\':\'none\';">'+
   '<b>🧾 '+PEND.length+' pago'+(PEND.length>1?'s':'')+' con FACTURA sin número</b> <span class="ayuda">(tocá para ver)</span>'+
