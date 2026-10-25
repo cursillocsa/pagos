@@ -21,7 +21,7 @@ main{padding:12px 16px 60px;max-width:860px;margin:0 auto}
 .nom{font-size:21px;font-weight:bold;margin:0}.sub{color:#555;margin-top:4px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
 .k{background:var(--fondo);border-radius:8px;padding:8px}.k span{font-size:11px;color:#666;text-transform:uppercase}.k b{display:block;font-size:18px;margin-top:2px}
-.r{background:#f4cccc}.y{background:#fff2cc}.g{background:#d9ead3}
+.b{background:#cfe2f3}.r{background:#f4cccc}.y{background:#fff2cc}.g{background:#d9ead3}
 table{width:100%;border-collapse:collapse;font-size:13px}th{background:var(--negro);color:#fff;text-align:left;padding:6px}
 td{padding:6px;border-bottom:1px solid #eee;vertical-align:top}.n{text-align:right;white-space:nowrap}
 .btn{display:block;width:100%;font-size:17px;padding:13px;background:var(--rojo);color:#fff;border:0;border-radius:10px;cursor:pointer;font-weight:bold}
@@ -38,8 +38,9 @@ form input,form select{width:100%;font-size:16px;padding:9px;border:1px solid #c
 .vacio{color:#999;font-style:italic}
 #msg{color:#666;text-align:center;margin-top:30px}
 .ayuda{color:#777;font-size:12px;font-weight:normal}
+h1 .tit{cursor:pointer;-webkit-tap-highlight-color:transparent}h1 .tit:active{opacity:.6}
 </style></head><body>
-<header><h1><b>💵 Pagos <span>Gauss</span></b><button id="bInicio" onclick="aInicio()">🏠 Inicio</button></h1>
+<header><h1><b class="tit" onclick="aInicio()" title="Ir al inicio">💵 Pagos <span>Gauss</span></b><button id="bInicio" onclick="aInicio()">🏠 Inicio</button></h1>
 <input id="q" placeholder="Buscá al alumno por nombre, apellido o ID…" autocomplete="off" oninput="filtrar()">
 <div id="res"></div></header>
 <main><div id="pend"></div><div id="ficha"></div><div id="msg">Cargando…</div></main>
@@ -70,7 +71,7 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 function sa(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
 function gs(n){n=Number(n)||0;return (n<0?'− ':'')+'Gs. '+Math.abs(Math.round(n)).toLocaleString('es-PY');}
 function num(s){return Number(String(s).replace(/[^0-9]/g,''))||0;}
-function fmt(i){var n=num(i.value);i.value=n?n.toLocaleString('es-PY'):'';}
+function fmt(i){var n=num(i.value);i.value=n?n.toLocaleString('es-PY'):(/0/.test(i.value)?'0':'');}   // se puede escribir 0
 function hoyIso(){var d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
 function guardado(k,v){try{if(v===undefined)return localStorage.getItem(k)||'';localStorage.setItem(k,v);}catch(e){return '';}}
 
@@ -146,7 +147,7 @@ el('ficha').addEventListener('input',function(){TOCADO=true;});
 el('ficha').addEventListener('click',function(ev){if(ev.target&&ev.target.closest&&!ev.target.closest('#sbMarca'))TOCADO=true;});
 
 function k(t,v,cl){return '<div class="k '+(cl||'')+'"><span>'+esc(t)+'</span><b>'+esc(v===''||v==null?'–':v)+'</b></div>';}
-function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?'r':(e==='Parcial'||e==='En espera'?'y':''));}
+function colorEstado(e){return e==='Sin costo'?'b':e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?'r':(e==='Parcial'||e==='En espera'?'y':''));}
 
 function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
  if(L){var lx=L.alumnos.filter(function(y){return y[0]===D.id;})[0];if(lx)lx[4]=D.deuda;}
@@ -157,6 +158,9 @@ function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
   '<div class="ayuda">La deuda de abajo ya incluye este pago. La hoja DEUDAS de la planilla se actualiza sola en 1 minuto.</div>'+
   (ULTIMO.fila?'<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div>':'')+'</div>';
  h+='<div class="card"><p class="nom">'+esc(D.nombre)+'</p><div class="sub">'+esc(D.id)+' · '+esc(D.grupo||'sin grupo')+' · '+esc(D.situacion)+'</div>'+
+  (D.revisar&&D.revisar.length?'<div class="y" style="border-radius:8px;padding:8px 10px;margin:8px 0">🔔 <b>Para revisar</b> (lo cargó el CSA): '+D.revisar.map(function(x){return esc(x.detalle);}).join(' · ')+
+   '<div class="ayuda">Resolvelo desde el panel de secretaría → 🔔 Para revisar.</div></div>':'')+
+  (D.ultimaVez?'<div class="sub">🙋 Vino por última vez el <b>'+esc(D.ultimaVez)+'</b></div>':'')+
   (D.inicioGauss?'<div class="sub">📅 En Gauss desde el <b>'+esc(D.inicioGauss)+'</b>'+(D.recorrido&&D.recorrido.length>1&&D.inicioGrupo&&D.inicioGrupo!==D.inicioGauss?' · en '+esc(D.grupo)+' desde el '+esc(D.inicioGrupo):'')+'</div>':'')+
   (D.recorrido&&D.recorrido.length>1?'<div class="sub" style="font-size:13px">Grupos: '+D.recorrido.map(function(r){return esc(r.grupo)+' ('+esc(r.inicio||'?')+(r.salida?' → '+esc(r.salida):'')+')';}).join(' · ')+'</div>':'')+
   (D.plan?'<div class="sub">Plan: '+esc(D.plan)+'</div>':'')+
@@ -170,7 +174,7 @@ function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
   (D.ultima&&D.ultima.dias<28?(D.ultima.completa
    ?'<div class="y" style="border-radius:8px;padding:10px;margin-top:10px">⚠️ <b>Ojo con la última cuota:</b> vence el '+esc(D.ultima.venc)+' y el grupo termina el '+esc(D.ultima.fin)+
     ', o sea que cubre solo <b>'+D.ultima.dias+' días</b>, y se está cobrando completa ('+gs(D.ultima.monto)+').'
-   :'<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:10px">ℹ️ La última cuota (vence el '+esc(D.ultima.venc)+') cubre '+D.ultima.dias+' días y ya está reducida: '+gs(D.ultima.monto)+'.')+
+   :'<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:10px">ℹ️ La última cuota (vence el '+esc(D.ultima.venc)+') cubre '+D.ultima.dias+' días y '+(D.ultima.monto>0?'ya está reducida: '+gs(D.ultima.monto)+'.':'<b>no se cobra (Gs. 0, sin costo)</b>.'))+
    '<div style="margin-top:8px"><button class="mini" style="font-size:14px;padding:7px 12px" onclick="formUltima()">📅 Cambiar última cuota</button></div><div id="fu"></div></div>':'')+
   cartelesEspera()+
   '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div>'+
@@ -347,15 +351,15 @@ function formUltima(){var u=F.ultima,prop=Math.round(u.cuota*u.dias/30/1000)*100
   '<label style="display:block;margin-top:6px"><input type="radio" name="um" value="grupo" onchange="modoUltima()"> <b>Para todo el grupo</b> '+esc(u.grupoNombre)+'</label>'+
   '<div id="uA" style="margin-top:8px"><b style="font-size:13px">Monto de la última cuota (Gs.)</b>'+
    '<input id="uMa" inputmode="numeric" value="'+prop.toLocaleString('es-PY')+'" oninput="fmt(this)" style="width:100%;font-size:16px;padding:9px;border:1px solid #ccc;border-radius:8px;margin-top:3px">'+
-   '<div class="ayuda">Proporcional a '+u.dias+' días de '+gs(u.cuota)+': '+gs(prop)+'. Vacío = se borra el monto propio y vale lo del grupo.</div></div>'+
+   '<div class="ayuda">Proporcional a '+u.dias+' días de '+gs(u.cuota)+': '+gs(prop)+'. <b>0 = no se cobra (gratis).</b> Vacío = se borra el monto propio y vale lo del grupo.</div></div>'+
   '<div id="uG" style="margin-top:8px;display:none"><b style="font-size:13px">% de la cuota (ej. 50) o monto fijo (ej. 125.000)</b>'+
    '<input id="uMg" inputmode="numeric" oninput="fmt(this)" style="width:100%;font-size:16px;padding:9px;border:1px solid #ccc;border-radius:8px;margin-top:3px">'+
-   '<div class="ayuda">Hasta 100 = porcentaje de la cuota de cada alumno. Más de 100 = el mismo monto para todos. Vacío = cuota completa. Los alumnos con monto propio no cambian.</div></div>'+
+   '<div class="ayuda">Hasta 100 = porcentaje de la cuota de cada alumno. Más de 100 = el mismo monto para todos. <b>0 = no se cobra a nadie del grupo.</b> Vacío = cuota completa. Los alumnos con monto propio no cambian.</div></div>'+
   '<div style="margin-top:10px"><button class="btn" id="bu" onclick="guardarUltima()">💾 Guardar última cuota</button></div><div id="um"></div></div>';}
 function modoUltima(){var g=document.querySelector('input[name=um]:checked').value==='grupo';el('uA').style.display=g?'none':'block';el('uG').style.display=g?'block':'none';}
 function guardarUltima(){var D=F,modo=document.querySelector('input[name=um]:checked').value,v=modo==='grupo'?val('uMg'):val('uMa'),n=num(v);
- var txt=modo==='grupo'?(v===''?'que la última cuota del grupo '+D.ultima.grupoNombre+' vuelva a ser completa':'la última cuota del grupo '+D.ultima.grupoNombre+' = '+(n<=100?n+'% de la cuota':gs(n)+' para todos'))
-  :(v===''?'borrar el monto propio de la última cuota de '+D.nombre:'la última cuota de '+D.nombre+' = '+gs(n));
+ var txt=modo==='grupo'?(v===''?'que la última cuota del grupo '+D.ultima.grupoNombre+' vuelva a ser completa':(n===0?'que la última cuota del grupo '+D.ultima.grupoNombre+' NO se cobre a nadie (Gs. 0)':'la última cuota del grupo '+D.ultima.grupoNombre+' = '+(n<=100?n+'% de la cuota':gs(n)+' para todos')))
+  :(v===''?'borrar el monto propio de la última cuota de '+D.nombre:(n===0?'que la última cuota de '+D.nombre+' NO se cobre (Gs. 0)':'la última cuota de '+D.nombre+' = '+gs(n)));
  if(!confirm('¿Confirmás '+txt+'?'))return;
  var b=el('bu');b.disabled=true;b.textContent='Guardando…';
  pedir('ultima',{id:D.id,modo:modo,valor:v},function(r){ULTIMO={id:D.id,msg:r.msg};ver(D.id,true);},
