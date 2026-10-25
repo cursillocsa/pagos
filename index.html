@@ -47,6 +47,24 @@ form input,form select{width:100%;font-size:16px;padding:9px;border:1px solid #c
 var API='https://script.google.com/macros/s/AKfycbzPNqOlPMgP1lme__szBCxU4kzz7fSJ3PxLxUZu_CcywI5ftsESe6e7hL63z1Xp7M6U/exec';
 var PIN='';try{PIN=localStorage.getItem('gaussPinSec')||'';}catch(e){}
 var L=null,F=null,ULTIMO=null;
+// ⚡ Supabase: copia rápida (solo lectura). Si falla o no está, se usa la planilla como siempre.
+var SB_URL='https://heycvwxaewjbwbusddqg.supabase.co',SB_KEY='sb_publishable_MpClcQrbgiAtqcsaa5js3w_XCYqHztI';
+var VER_N=0,TOCADO=false,NUEVO=null;
+function sbLeer(tipo,clave,ok,mal){
+ if(!PIN){mal();return;}
+ var hecho=false,to=setTimeout(function(){if(!hecho){hecho=true;mal();}},4000);
+ fetch(SB_URL+'/rest/v1/rpc/gauss_leer',{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+  body:JSON.stringify({p_pin:PIN,p_tipo:tipo,p_clave:clave})})
+ .then(function(r){return r.json();})
+ .then(function(d){if(hecho)return;hecho=true;clearTimeout(to);if(d&&d.datos)ok(d.datos,d.t);else mal();})
+ .catch(function(){if(hecho)return;hecho=true;clearTimeout(to);mal();});
+}
+function estable(o){if(Array.isArray(o))return '['+o.map(estable).join(',')+']';
+ if(o&&typeof o==='object')return '{'+Object.keys(o).filter(function(k){return k!=='ultFactura'&&k!=='_ms'&&k!=='_total'&&o[k]!==undefined;}).sort()
+  .map(function(k){return JSON.stringify(k)+':'+estable(o[k]);}).join(',')+'}';
+ return JSON.stringify(o);}
+function haceCuanto(t){var m=Math.round((Date.now()-new Date(t).getTime())/60000);return isNaN(m)?'':(m<1?'recién':m<60?'hace '+m+' min':'hace '+Math.round(m/60)+' h');}
+function marca(h){var m=el('sbMarca');if(m)m.innerHTML=h;}
 function el(i){return document.getElementById(i);}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function sa(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
@@ -75,8 +93,12 @@ function pedirPin(m){
  el('msg').textContent='';var i=el('pin');i.focus();i.onkeydown=function(ev){if(ev.key==='Enter')entrar();};}
 function entrar(){PIN=el('pin').value.trim();guardado('gaussPinSec',PIN);el('ficha').innerHTML='';cargar();}
 
-function cargar(){el('msg').textContent='Cargando alumnos… (unos segundos)';
- pedir('lista',{},function(d){L=d;el('msg').textContent=d.alumnos.length+' alumnos. Escribí arriba para buscar.';el('q').focus();cargarPend();},error);}
+function cargar(){el('msg').textContent='Cargando alumnos…';
+ function listo(){if(!F)el('msg').textContent=L.alumnos.length+' alumnos. Escribí arriba para buscar.';el('q').focus();cargarPend();}
+ sbLeer('pagosLista','todo',function(d){L=d;listo();
+   // confirma con la planilla sin hacer esperar
+   pedir('lista',{},function(d2){L=d2;if(el('res').style.display==='block')filtrar();},function(e){if(String(e.message||'').indexOf('PIN:')>=0)error(e);});},
+  function(){pedir('lista',{},function(d){L=d;listo();},error);});}
 var PEND=null,ULTFAC='';
 function cargarPend(){pedir('pendFacturas',{},function(d){PEND=d.pend;ULTFAC=d.ultFactura||ULTFAC;pintarPend();},function(){});}
 function pintarPend(){var b=el('pend');if(!PEND||!PEND.length){b.innerHTML='';return;}
@@ -101,13 +123,31 @@ function aInicio(){F=null;ULTIMO=null;el('ficha').innerHTML='';el('q').value='';
 function ver(id,mantener){
  el('res').style.display='none';el('q').blur();el('bInicio').style.display='inline-block';
  if(!mantener)ULTIMO=null;
- el('ficha').innerHTML='';el('msg').textContent='Cargando… (unos segundos)';
- pedir('ficha',{id:id},pintar,error);}
+ el('ficha').innerHTML='';el('msg').textContent='Cargando…';
+ var n=++VER_N;
+ function dePlanilla(){pedir('ficha',{id:id},function(D){if(n===VER_N)pintar(D);},function(e){if(n===VER_N)error(e);});}
+ if(mantener){el('msg').textContent='Cargando… (unos segundos)';dePlanilla();return;}   // después de guardar algo: siempre de la planilla
+ sbLeer('pagosFicha',id,function(d,t){
+   if(n!==VER_N)return;
+   pintar(d);
+   el('ficha').insertAdjacentHTML('afterbegin','<div id="sbMarca" class="ayuda" style="margin:-4px 0 8px">⚡ Copia rápida ('+esc(haceCuanto(t))+') · confirmando con la planilla…</div>');
+   pedir('ficha',{id:id},function(D){
+     if(n!==VER_N)return;
+     if(estable(D)===estable(F)){F.ultFactura=D.ultFactura;marca('✅ Confirmado con la planilla');setTimeout(function(){marca('');},2500);return;}
+     if(!TOCADO){var y=window.scrollY;pintar(D);window.scrollTo(0,y);return;}
+     F.ultFactura=D.ultFactura;NUEVO=D;
+     marca('<span style="color:#b45f06;font-weight:bold">🔄 La planilla tiene datos más nuevos.</span> <button class="mini" onclick="var y=window.scrollY;pintar(NUEVO);window.scrollTo(0,y);">Actualizar</button>');
+   },function(e){if(n!==VER_N)return;if(String(e.message||'').indexOf('PIN:')>=0){error(e);return;}
+     marca('<span style="color:#c0392b">⚠️ No se pudo confirmar con la planilla (se ve la copia rápida).</span>');});
+ },function(){if(n===VER_N){el('msg').textContent='Cargando… (unos segundos)';dePlanilla();}});}
+// si la secretaria empieza a tocar la ficha (abrir un formulario, escribir), no se la redibuja sola
+el('ficha').addEventListener('input',function(){TOCADO=true;});
+el('ficha').addEventListener('click',function(ev){if(ev.target&&ev.target.closest&&!ev.target.closest('#sbMarca'))TOCADO=true;});
 
 function k(t,v,cl){return '<div class="k '+(cl||'')+'"><span>'+esc(t)+'</span><b>'+esc(v===''||v==null?'–':v)+'</b></div>';}
 function colorEstado(e){return e==='Pagado'||e==='Perdonada'?'g':(e==='Vencido'?'r':(e==='Parcial'||e==='En espera'?'y':''));}
 
-function pintar(D){F=D;el('msg').textContent='';
+function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
  if(L){var lx=L.alumnos.filter(function(y){return y[0]===D.id;})[0];if(lx)lx[4]=D.deuda;}
  var h='';
  if(ULTIMO&&ULTIMO.id===D.id&&ULTIMO.msg)h+='<div class="ok"><b>✅ '+esc(ULTIMO.msg)+'</b></div>';
