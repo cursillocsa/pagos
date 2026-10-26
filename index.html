@@ -167,7 +167,7 @@ function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
   '<div class="sub" style="font-size:13px">Celular: '+esc(D.cel||'–')+' · Responsable: '+esc(D.resp||'–')+' '+esc(D.celResp||'')+'</div>'+
   '<div class="grid">'+k('Deuda vencida',D.deuda>0?gs(D.deuda):'Al día',D.deuda>0?'r':'g')+
   (D.multas>0?k('De eso, multas',gs(D.multas),'r'):'')+
-  (D.impagas?k('Pagos vencidos',D.impagas):'')+
+  (D.impagas||(D.sueltas&&D.sueltas.length)?k('Pagos vencidos',(D.impagas||0)+(D.sueltas&&D.sueltas.length?' + multa de '+D.sueltas.map(function(x){return x.mes;}).join(', '):'')):'')+
   k('Próximo vencimiento',D.prox?D.prox.venc+' · '+gs(D.prox.monto):'')+
   (D.favor>0?k('Saldo a favor',gs(D.favor),'g'):'')+
   (D.ultima?k('Última cuota',D.ultima.venc+' · '+gs(D.ultima.monto),D.ultima.dias<28&&D.ultima.completa?'y':''):'')+'</div>'+
@@ -179,7 +179,8 @@ function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
   cartelesEspera()+
   '<div style="margin-top:12px"><button class="btn" onclick="formPago()">💵 Cargar pago</button></div><div id="fp"></div>'+
   '<div style="margin-top:8px"><button class="btn btn2" style="font-size:15px;padding:10px" onclick="formAjuste()">✂️ Ajuste (descuento, perdón de cuota o multa…)</button></div><div id="fa"></div>'+
-  '<div style="margin-top:8px"><button class="btn" style="font-size:15px;padding:10px;background:#b7950b" onclick="formEspera()">⏳ Espera de cuotas (sin multa hasta una fecha)</button></div><div id="fe"></div></div>';
+  '<div style="margin-top:8px"><button class="btn" style="font-size:15px;padding:10px;background:#b7950b" onclick="formEspera()">⏳ Espera de cuotas (sin multa hasta una fecha)</button></div><div id="fe"></div>'+
+  (D.cuotaPlan?'<div style="margin-top:8px"><button class="btn" style="font-size:15px;padding:10px;background:#1f6f8b" onclick="formCuota()">💲 Cambiar monto de cuota (corregir o cuota nueva)</button></div><div id="fq"></div>':'')+'</div>';
  // cuotas
  h+='<div class="card"><h2>📅 Cuotas</h2>';
  if(D.cuotas.length){h+='<div style="overflow-x:auto"><table><tr><th>Concepto</th><th>Vence</th><th class="n">Monto</th><th class="n">Multa</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th></tr>';
@@ -191,12 +192,15 @@ function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
  // pagos
  h+='<div class="card"><h2>💰 Pagos que ya hizo</h2>';
  if(D.pagos.length){h+='<div style="overflow-x:auto"><table><tr><th>Fecha</th><th class="n">Monto</th><th>Medio</th><th>Concepto</th><th>Comprob.</th><th></th></tr>';
-  D.pagos.forEach(function(p,i){h+='<tr><td>'+esc(p.fecha)+(p.carga&&p.carga!==p.fecha?'<br><small style="color:#888">cargado '+esc(p.carga)+'</small>':'')+'</td>'+
+  D.pagos.forEach(function(p,i){
+   if(p.anulado){h+='<tr style="color:#999"><td><s>'+esc(p.fecha)+'</s></td><td colspan="5"><s>'+esc(p.medio)+' · '+esc(p.tipo)+'</s><br><small style="color:#c0392b">🚫 '+esc(p.anulado)+'</small></td></tr>';return;}
+   h+='<tr><td>'+esc(p.fecha)+(p.carga&&p.carga!==p.fecha?'<br><small style="color:#888">cargado '+esc(p.carga)+'</small>':'')+'</td>'+
    '<td class="n">'+gs(p.monto)+'</td><td>'+esc(p.medio)+'</td><td>'+esc(p.tipo)+'</td><td>'+(p.num?esc(p.comp):(sa(p.tipoComp)==='factura'?'<span style="color:#b7950b">FACTURA sin N°</span><br>':esc(p.tipoComp)+' ')+
     '<button class="mini" onclick="formFactura('+i+')">➕ N° factura</button>')+'</td>'+
-   '<td><button class="mini" onclick="comp('+p.fila+',\''+esc(p.clave)+'\',\'cp'+i+'\',this)">🧾</button></td></tr>'+
+   '<td style="white-space:nowrap"><button class="mini" onclick="comp('+p.fila+',\''+esc(p.clave)+'\',\'cp'+i+'\',this)">🧾</button>'+
+   (p.anulable?' <button class="mini" title="Anular este pago" onclick="formAnular('+i+')">🚫</button>':'')+'</td></tr>'+
    '<tr><td colspan="6" id="cp'+i+'" style="border:0;padding:0"></td></tr>';});
-  h+='</table></div><div class="sub" style="font-size:12px">🧾 = generar el comprobante interno de ese pago. ➕ N° factura = cargar el número de la factura hecha en el sistema de facturación.</div>';}
+  h+='</table></div><div class="sub" style="font-size:12px">🧾 = generar el comprobante interno de ese pago. ➕ N° factura = cargar el número de la factura hecha en el sistema de facturación. 🚫 = anular un pago mal cargado (solo los de los últimos 7 días).</div>';}
  else h+='<div class="vacio">Todavía no hay pagos.</div>';
  h+='</div>';
  // anotaciones (las que escriben en DEUDAS → ✍️ ANOTACIÓN)
@@ -227,20 +231,22 @@ function formPago(){
    '<label style="margin:0"><input id="pm" type="checkbox" style="width:auto" onchange="perdonar()"> ✂️ Perdonar multa <span class="ayuda">(debe '+gs(D.multas)+' de multa)</span></label>'+
    '<div id="pmBox" style="display:none"><div class="fila"><div><label>Multa a perdonar (Gs.)</label><input id="pmM" inputmode="numeric" value="'+Number(D.multas).toLocaleString('es-PY')+'" oninput="fmt(this);perdonar()"></div>'+
    '<div><label>Autorizó <span class="ayuda">(opcional)</span></label><input id="pmA"></div></div></div></div>':'')+
-  '<label>Monto que paga (Gs.)</label><input id="mo" inputmode="numeric" value="'+(sug?Number(sug).toLocaleString('es-PY'):'')+'" oninput="fmt(this);MOTOCADO=true">'+
+  cartelMulta()+
+  '<label>Monto que paga (Gs.)</label><input id="mo" inputmode="numeric" value="'+(sug?Number(sug).toLocaleString('es-PY'):'')+'" oninput="fmt(this);MOTOCADO=true;previa()">'+
+  '<div id="prev"></div>'+
   '<div class="fila"><div><label>Fecha de carga <span class="ayuda">(día en que entra a la caja)</span></label><input id="f" type="date" value="'+hoyIso()+'" max="'+hoyIso()+'"></div>'+
   (hay.fechaPago?'<div><label>Fecha de pago <span class="ayuda">(vacía = la misma que la de carga)</span></label><input id="fp2" type="date" max="'+hoyIso()+'"></div>':'')+'</div>'+
-  '<div class="fila">'+(hay.medio?'<div><label>Medio</label><select id="me">'+opts(o.medio,'',true)+'</select></div>':'')+
-  (hay.tipo?'<div><label>Concepto</label><select id="ti">'+opts(o.tipo,tipoDef,true)+'</select></div>':'')+'</div>'+
-  '<div class="fila">'+(hay.cobro?'<div><label>Cobró</label><select id="co">'+opts(o.cobro,guardado('gaussSecCobro'),true)+'</select></div>':'')+
-  (hay.proc?'<div><label>Procesado en</label><select id="pr">'+opts(o.proc,procDef,true)+'</select></div>':'')+'</div>'+
+  '<div class="fila">'+(hay.medio?'<div><label>Medio '+OBL+'</label><select id="me">'+opts(o.medio,'',true)+'</select></div>':'')+
+  (hay.tipo?'<div><label>Concepto '+OBL+'</label><select id="ti">'+opts(o.tipo,tipoDef,true)+'</select></div>':'')+'</div>'+
+  '<div class="fila">'+(hay.cobro?'<div><label>Cobró '+OBL+'</label><select id="co">'+opts(o.cobro,guardado('gaussSecCobro'),true)+'</select></div>':'')+
+  (hay.proc?'<div><label>Procesado en '+OBL+'</label><select id="pr">'+opts(o.proc,procDef,true)+'</select></div>':'')+'</div>'+
   '<div class="fila">'+(hay.tipoComp?'<div><label>Comprobante</label><select id="tc" onchange="compCambio()">'+opts(o.tipoComp,'',true)+'</select></div>':'')+
   (hay.comp?'<div id="dCm" style="display:none"><label id="lCm">N° comprobante</label><input id="cm"><div id="sCm" class="ayuda"></div></div>':'')+'</div>'+
   '<div id="dFac" style="display:none">'+cajaFact('pf')+'</div>'+
   (hay.entregado?'<label style="font-weight:normal;margin-top:12px"><input id="en" type="checkbox" style="width:auto"> Comprobante ya entregado</label>':'')+
   (hay.obs?'<label>Observaciones <span class="ayuda">(opcional)</span></label><input id="ob">':'')+
   '<div style="margin-top:14px"><button class="btn" id="bg" type="submit">💾 Guardar pago</button></div><div id="fm"></div></form>';
- el('fp').innerHTML=h;MOTOCADO=false;el('mo').focus();
+ el('fp').innerHTML=h;MOTOCADO=false;el('mo').focus();previa();
 }
 function val(id){var e=el(id);return e?e.value:'';}
 // ---- ✂️ ajustes (van a la hoja AJUSTES)
@@ -365,15 +371,99 @@ function guardarUltima(){var D=F,modo=document.querySelector('input[name=um]:che
  pedir('ultima',{id:D.id,modo:modo,valor:v},function(r){ULTIMO={id:D.id,msg:r.msg};ver(D.id,true);},
   function(e){b.disabled=false;b.textContent='💾 Guardar última cuota';var t=String(e.message||e);if(t.indexOf('PIN:')>=0){error(e);return;}el('um').innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});}
 var MOTOCADO=false;
+var OBL='<span style="color:#c0392b">*</span>';
+// ---- 💸 multa pendiente: cartel y vista previa de cómo se reparte el pago (lo más viejo primero, primero la multa)
+function pendVenc(){return ((F&&F.pend)||[]).filter(function(x){return x.vencida;});}
+function multaInfo(){var l=pendVenc(),tot=0,meses=[];
+ l.forEach(function(x){var m=(x.multa||0)+(x.resto?(x.cuota||0):0);if(m>0){tot+=m;if(meses.indexOf(x.mes)<0)meses.push(x.mes);}});
+ return {tot:tot,meses:meses};}
+function cartelMulta(){var mi=multaInfo();if(!(mi.tot>0)||!F.deuda)return '';
+ var cuotas=pendVenc().filter(function(x){return !x.resto&&x.cuota>0;}),c0=cuotas[0],soloCuota=Math.max(0,F.deuda-mi.tot);
+ return '<div class="r" style="border-radius:8px;padding:10px;margin-top:10px;border:2px solid #c0392b">⚠️ <b>Tiene '+gs(mi.tot)+' de multa</b> ('+esc(mi.meses.join(', '))+').'+
+  (c0?' Si paga solo la cuota ('+gs(soloCuota)+'), <b>primero se cubre la multa</b> y la cuota de '+esc(c0.mes)+' queda debiendo '+gs(Math.min(mi.tot,soloCuota))+'.':'')+
+  '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="mini" style="font-size:14px;padding:7px 12px;background:#c0392b;color:#fff;border:0" onclick="ponerMonto('+F.deuda+')">Cobrar todo · '+gs(F.deuda)+'</button>'+
+  (soloCuota>0?'<button type="button" class="mini" style="font-size:14px;padding:7px 12px" onclick="ponerMonto('+soloCuota+')">Solo la cuota · '+gs(soloCuota)+'</button>':'')+'</div></div>';}
+function ponerMonto(n){var i=el('mo');if(!i)return;i.value=n?Number(n).toLocaleString('es-PY'):'';MOTOCADO=true;previa();}
+function previa(){var b=el('prev');if(!b||!F)return;var monto=num(val('mo')),pd=perdon(),l=((F.pend)||[]).map(function(x){return {mes:x.mes,concepto:x.concepto,cuota:x.cuota||0,multa:x.multa||0,resto:x.resto,vencida:x.vencida};});
+ if(!l.length||!(monto>0)){b.innerHTML='';return;}
+ l.forEach(function(x){if(pd>0&&x.multa>0){var q=Math.min(pd,x.multa);x.multa-=q;pd-=q;}});   // el perdón baja primero las multas
+ var r=monto,lin=[],queda=0;
+ l.forEach(function(x){if(r<=0){if(x.vencida)queda+=x.cuota+x.multa;return;}
+  var aM=Math.min(r,x.multa);r-=aM;var aC=Math.min(r,x.cuota);r-=aC;
+  if(aM>0)lin.push('<div>✅ Multa de '+esc(x.mes)+': '+gs(aM)+(aM<x.multa?' <span style="color:#c0392b">(queda '+gs(x.multa-aM)+')</span>':'')+'</div>');
+  if(aC>0||x.cuota>0&&aM>0){var falta=x.cuota-aC;
+   lin.push('<div>'+(falta>0?'⚠️':'✅')+' '+(x.resto?'Diferencia de '+esc(x.mes)+' (por la multa)':esc(x.concepto))+': '+gs(aC)+
+    (falta>0?' <b style="color:#c0392b">→ queda debiendo '+gs(falta)+(x.vencida?'':'')+'</b>':(x.resto?'':' (completa)'))+'</div>');
+   if(x.vencida)queda+=falta+(x.multa-aM);}
+  else if(x.vencida)queda+=x.cuota+(x.multa-aM);});
+ if(r>0)lin.push('<div>💚 Saldo a favor: '+gs(r)+'</div>');
+ b.innerHTML='<div style="background:#f3f5f9;border-radius:8px;padding:8px 10px;margin-top:6px;font-size:14px"><b>Este pago cubre:</b>'+lin.join('')+
+  (queda>0?'<div style="margin-top:4px;color:#c0392b"><b>Después de este pago sigue debiendo '+gs(queda)+' vencido.</b></div>':'<div style="margin-top:4px;color:#1b8a3a"><b>Queda al día.</b></div>')+'</div>';}
+
+// ---- 💲 CAMBIAR MONTO DE CUOTA
+function formCuota(){var q=F.cuotaPlan;if(!q)return;var M=F.mesesCuotas||[],hoy=new Date(),sig=new Date(hoy.getFullYear(),hoy.getMonth()+1,1),def=sig.getFullYear()+'-'+('0'+(sig.getMonth()+1)).slice(-2);
+ el('fq').innerHTML='<form onsubmit="return false" style="background:#eaf4f8;border-radius:8px;padding:10px;margin-top:8px">'+
+  '<div class="ayuda">Cuota actual: <b>'+gs(q.actual)+'</b>'+(q.nueva!==null&&q.nueva!==undefined&&q.desdeNueva?' (tiene cuota nueva de '+gs(q.nueva)+' desde el '+esc(q.desdeNueva)+'; la base es '+gs(q.base)+')':'')+' · '+esc(q.grupo)+'</div>'+
+  '<label style="font-weight:normal"><input type="radio" name="qm" value="corregir" checked onchange="cuotaModo()"> <b>✏️ Corregir: estaba mal cargada desde el principio</b><br><span class="ayuda">Cambia la cuota desde la PRIMERA y recalcula todo. Lo que pagó de más queda a favor y cubre las cuotas siguientes.</span></label>'+
+  '<label style="font-weight:normal"><input type="radio" name="qm" value="nueva" onchange="cuotaModo()"> <b>💲 Cuota nueva de acá en adelante</b><br><span class="ayuda">Lo que ya pagó queda como está; desde la cuota que elijas paga el monto nuevo.</span></label>'+
+  '<div class="fila"><div><label>Monto correcto de la cuota (Gs.)</label><input id="qM" inputmode="numeric" oninput="fmt(this);cuotaReset()"></div>'+
+  '<div id="qDd" style="display:none"><label>Desde la cuota de</label><select id="qD" onchange="cuotaReset()">'+M.map(function(m){return '<option value="'+m.v+'"'+(m.v===def?' selected':'')+'>'+esc(m.t)+'</option>';}).join('')+'</select></div></div>'+
+  '<div class="fila"><div><label>Motivo '+OBL+'</label><input id="qMo" placeholder="ej. es de IPT, le correspondía 650.000"></div><div><label>Quién '+OBL+'</label><input id="qQ" value="'+esc(guardado('gaussSecQuien'))+'"></div></div>'+
+  '<button class="btn" id="qV" style="margin-top:10px;background:#1f6f8b" onclick="cuotaVer()">👁️ Ver cómo queda la deuda</button><div id="qR"></div></form>';}
+function cuotaModo(){var n=document.querySelector('input[name=qm]:checked').value==='nueva';el('qDd').style.display=n?'block':'none';cuotaReset();}
+function cuotaReset(){var r=el('qR');if(r)r.innerHTML='';}
+function cuotaDatos(){return {id:F.id,modo:document.querySelector('input[name=qm]:checked').value,monto:num(val('qM'))||(val('qM').trim()==='0'?0:''),desde:val('qD'),motivo:val('qMo').trim(),quien:val('qQ').trim()};}
+function cuotaVer(){var d=cuotaDatos(),r=el('qR');if(d.monto===''){r.innerHTML='<div class="err">Escribí el monto.</div>';return;}
+ r.innerHTML='<div class="ayuda">Calculando…</div>';
+ pedir('cuotaSim',d,function(x){
+  r.innerHTML='<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;font-size:14px">'+
+   (d.modo==='nueva'?'Desde la cuota de <b>'+esc(x.desde)+'</b> paga <b>'+gs(d.monto)+'</b> en vez de '+gs(x.antes.cuota)+'.':'La cuota pasa de '+gs(x.antes.base)+' a <b>'+gs(d.monto)+'</b> desde la primera.')+
+   '<div style="margin-top:6px">Deuda vencida: '+gs(x.antes.deuda)+' → <b>'+gs(x.despues.deuda)+'</b></div>'+
+   (x.despues.favor||x.antes.favor?'<div>Saldo a favor: '+gs(x.antes.favor)+' → <b>'+gs(x.despues.favor)+'</b></div>':'')+
+   '<button class="btn" id="qG" style="margin-top:10px;background:#1f6f8b" onclick="cuotaGuardar()">💾 Guardar cambio de cuota</button><div id="qMsg"></div></div>';},
+  function(e){var t=String(e.message||e);if(t.indexOf('PIN:')>=0){error(e);return;}r.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});}
+function cuotaGuardar(){var d=cuotaDatos(),m=el('qMsg');
+ if(!d.motivo){m.innerHTML='<div class="err">Escribí el motivo.</div>';return;}
+ if(!d.quien){m.innerHTML='<div class="err">Escribí quién hace el cambio.</div>';return;}
+ guardado('gaussSecQuien',d.quien);var b=el('qG');b.disabled=true;b.textContent='Guardando…';
+ pedir('cuotaCambiar',d,function(r){ULTIMO={id:F.id,msg:r.msg};if(r.ficha&&r.ficha.id===F.id)pintar(r.ficha);else ver(F.id,true);},
+  function(e){b.disabled=false;b.textContent='💾 Guardar cambio de cuota';var t=String(e.message||e);if(t.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});}
+
+// ---- 🚫 ANULAR PAGO (no se borra: queda en CAJA con monto 0 y la columna ANULADO)
+function formAnular(i){var p=F.pagos[i];
+ el('cp'+i).innerHTML='<div class="r" style="border-radius:8px;padding:10px;margin:4px 0">'+
+  '<b>🚫 Anular el pago de '+gs(p.monto)+' del '+esc(p.fecha)+'</b> ('+esc(p.medio)+' · '+esc(p.tipo)+')'+
+  (p.num&&sa(p.tipoComp)==='factura'?'<div style="margin-top:4px">⚠️ Tiene la <b>factura N° '+esc(p.num)+'</b>: anulala también en el sistema de facturación.</div>':'')+
+  '<div class="ayuda" style="margin-top:4px">No se borra: en CAJA queda en 0, tachado, con quién lo anuló y por qué.</div>'+
+  '<input id="anM'+i+'" placeholder="Motivo (obligatorio): ej. se cargó dos veces, monto equivocado…" style="width:100%;font-size:15px;padding:8px;border:1px solid #ccc;border-radius:8px;margin-top:8px">'+
+  '<input id="anQ'+i+'" placeholder="Quién anula (obligatorio)" value="'+esc(guardado('gaussSecQuien'))+'" style="width:100%;font-size:15px;padding:8px;border:1px solid #ccc;border-radius:8px;margin-top:6px">'+
+  '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="mini" style="font-size:14px;padding:8px 12px;background:#c0392b;color:#fff;border:0" id="anB'+i+'" onclick="anular('+i+',false)">🚫 Anular</button>'+
+  '<button class="mini" style="font-size:14px;padding:8px 12px" onclick="anular('+i+',true)">🚫 Anular y cargar de nuevo</button>'+
+  '<button class="mini" style="font-size:14px;padding:8px 12px" onclick="el(\'cp'+i+'\').innerHTML=\'\'">Cancelar</button></div><div id="anR'+i+'"></div></div>';}
+function anular(i,otraVez){var p=F.pagos[i],m=el('anR'+i),mo=val('anM'+i).trim(),q=val('anQ'+i).trim();
+ if(!mo){m.innerHTML='<div class="err">Escribí el motivo.</div>';return;}
+ if(!q){m.innerHTML='<div class="err">Escribí quién anula.</div>';return;}
+ if(!confirm('¿Anular el pago de '+gs(p.monto)+' del '+p.fecha+' de '+F.nombre+'?'))return;
+ guardado('gaussSecQuien',q);m.innerHTML='<div class="ayuda">Anulando…</div>';
+ pedir('anularPago',{fila:p.fila,clave:p.clave,motivo:mo,quien:q},function(r){
+   ULTIMO={id:F.id,msg:r.msg+(r.avisos&&r.avisos.length?' '+r.avisos.join(' '):'')};
+   if(r.ficha&&r.ficha.id===F.id)pintar(r.ficha);else ver(F.id,true);
+   cargarPend();
+   if(otraVez&&r.ficha){formPago();var x=r.pago||{},pon=function(id,v){var e=el(id);if(e&&v!==undefined&&v!==null&&v!=='')e.value=v;};
+    pon('mo',Number(x.monto).toLocaleString('es-PY'));pon('me',x.medio);pon('ti',x.tipo);pon('co',x.cobro);pon('pr',x.proc);pon('tc',x.tipoComp);pon('ob',x.obs);
+    MOTOCADO=true;try{compCambio();}catch(e){}previa();el('fp').scrollIntoView({behavior:'smooth'});}},
+  function(e){var t=String(e.message||e);if(t.indexOf('PIN:')>=0){error(e);return;}m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});}
 function perdon(){return el('pm')&&el('pm').checked?num(val('pmM')):0;}
 function perdonar(){var on=el('pm').checked;el('pmBox').style.display=on?'block':'none';
- if(!MOTOCADO&&F.deuda>0){var s=Math.max(0,F.deuda-perdon());el('mo').value=s?s.toLocaleString('es-PY'):'';}}
+ if(!MOTOCADO&&F.deuda>0){var s=Math.max(0,F.deuda-perdon());el('mo').value=s?s.toLocaleString('es-PY'):'';}previa();}
 var FORZAR=false;
 function guardar(ev){if(ev)ev.preventDefault();
  var D=F,monto=num(val('mo')),pd=perdon(),m=el('fm');
  if(!(monto>0)&&!(pd>0)){m.innerHTML='<div class="err">Escribí el monto.</div>';return;}
  if(pd>D.multas){m.innerHTML='<div class="err">No se puede perdonar más que la multa que debe ('+gs(D.multas)+').</div>';return;}
  if(monto>0&&L.hay.medio&&!val('me')){m.innerHTML='<div class="err">Elegí el medio de pago.</div>';return;}
+ if(monto>0&&L.hay.tipo&&!val('ti')){m.innerHTML='<div class="err">Elegí el concepto.</div>';return;}
+ if(monto>0&&L.hay.cobro&&!val('co')){m.innerHTML='<div class="err">Elegí quién cobró.</div>';return;}
  if(monto>0&&L.hay.proc&&!val('pr')){m.innerHTML='<div class="err">Elegí PROCESADO EN.</div>';return;}
  if(!val('f')){m.innerHTML='<div class="err">Falta la fecha de carga.</div>';return;}
  if(val('fp2')&&val('fp2')>val('f')){m.innerHTML='<div class="err">La fecha de pago no puede ser después de la fecha de carga.</div>';return;}
