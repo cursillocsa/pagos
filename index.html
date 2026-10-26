@@ -268,13 +268,15 @@ function formEspera(){var M=F.mesesCuotas||[],ve=F.cuotas.filter(function(c){ret
  var op=function(sel){return M.map(function(m){return '<option value="'+m.v+'"'+(m.v===sel?' selected':'')+'>'+esc(m.t)+'</option>';}).join('');};
  el('fe').innerHTML='<form onsubmit="return false" style="background:#fff8e1;border-radius:8px;padding:10px;margin-top:8px">'+
   '<div class="ayuda">Las cuotas elegidas <b>no generan multa</b> si las paga hasta la fecha. Si no paga a tiempo, las multas corren normal desde el vencimiento de cada cuota.</div>'+
-  '<label>Motivo</label><select id="eMo">'+opts(F.motivosEspera||['Beca Itaipú','Otro'],'Beca Itaipú',true)+'</select>'+
-  '<div class="fila"><div><label>Desde la cuota de</label><select id="eD">'+op(d)+'</select></div><div><label>Hasta la cuota de</label><select id="eH">'+op(d>actual?d:actual)+'</select></div></div>'+
-  '<label>Esperar hasta</label><input type="date" id="eL">'+
-  '<div class="fila"><div><label>Anotado por</label><input id="eQ" value="'+esc(guardado('gaussSecQuien'))+'"></div><div><label>Observación</label><input id="eO" placeholder="ej. dijo que se desembolsa a fin de mes"></div></div>'+
+  '<label>Motivo '+OBL+'</label><select id="eMo">'+opts(F.motivosEspera||['Beca Itaipú','Otro'],'Beca Itaipú',true)+'</select>'+
+  '<div class="fila"><div><label>Desde la cuota de '+OBL+'</label><select id="eD">'+op(d)+'</select></div><div><label>Hasta la cuota de '+OBL+'</label><select id="eH">'+op(d>actual?d:actual)+'</select></div></div>'+
+  '<label>Esperar hasta '+OBL+'</label><input type="date" id="eL">'+
+  '<div class="fila"><div><label>Anotado por '+OBL+'</label><input id="eQ" value="'+esc(guardado('gaussSecQuien'))+'"></div><div><label>Observación <span class="ayuda">(opcional)</span></label><input id="eO" placeholder="ej. dijo que se desembolsa a fin de mes"></div></div>'+
   '<button class="btn" id="eB" style="margin-top:10px;background:#b7950b" onclick="guardarEspera()">⏳ Guardar espera</button><div id="eMsg"></div></form>';}
 function guardarEspera(){var m=el('eMsg');
+ if(!val('eMo')){m.innerHTML='<div class="err">Elegí el motivo.</div>';return;}
  if(!val('eL')){m.innerHTML='<div class="err">Elegí hasta qué fecha se le espera.</div>';return;}
+ if(!val('eQ').trim()){m.innerHTML='<div class="err">Escribí quién lo anota.</div>';return;}
  if(val('eH')<val('eD')){m.innerHTML='<div class="err">"Hasta la cuota de" no puede ser antes que "desde".</div>';return;}
  var tx=function(id){var s=el(id);return s.options[s.selectedIndex].text;};
  if(!confirm(F.nombre+':\n'+val('eMo')+'\nCuotas '+tx('eD')+(val('eH')!==val('eD')?' a '+tx('eH'):'')+' sin multa si paga hasta el '+val('eL').split('-').reverse().join('/')+'\n\n¿Confirmás?'))return;
@@ -292,20 +294,25 @@ function anularEspera(fila){if(!confirm('¿Anular esta espera?\nEsas cuotas vuel
  pedir('esperaAnular',{id:F.id,fila:fila,quien:guardado('gaussSecQuien')},function(r){ULTIMO={id:F.id,msg:r.msg};ver(F.id,true);},function(e){alert('⚠️ '+(e.message||e));});}
 function formAjuste(){var tipos=(L.opciones.ajustes&&L.opciones.ajustes.length)?L.opciones.ajustes:['Descuento','Perdón de cuota','Perdón de multa','Recargo','Otro'];
  var meses=F.cuotas.map(function(c){var m=String(c.concepto).match(/Cuota\s+([a-z]{3}-\d{4})/i);return m?m[1]:'';}).filter(function(x,i,a){return x&&a.indexOf(x)===i;});
- el('fa').innerHTML='<div style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:8px">'+
-  '<label>Tipo de ajuste</label><select id="aT" onchange="ajTipo()">'+opts(tipos,'',true)+'</select>'+
-  '<div id="aMesD" style="display:none"><label>¿De qué cuota?</label><select id="aMes">'+opts(meses,'',true)+'</select>'+
+ el('fa').innerHTML='<form onsubmit="return false" style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:8px">'+
+  '<label>Tipo de ajuste '+OBL+'</label><select id="aT" onchange="ajTipo()">'+opts(tipos,'',true)+'</select>'+
+  '<div id="aMesD" style="display:none"><label>¿De qué cuota? '+OBL+'</label><select id="aMes" onchange="ajMes()">'+opts(meses,'',true)+'</select>'+
    '<div class="ayuda">Si la cuota no aparece, es porque todavía no venció: esperá a que esté en la lista.</div></div>'+
-  '<label id="aML">Monto (Gs.)</label><input id="aM" inputmode="numeric" oninput="fmt(this)">'+
-  '<div class="fila"><div><label>Motivo</label><input id="aMo"></div><div><label>Autorizó</label><input id="aA"></div></div>'+
-  '<button class="btn" id="aB" style="margin-top:10px" onclick="guardarAjuste()">💾 Guardar ajuste</button><div id="aMsg"></div></div>';}
+  '<label id="aML">Monto (Gs.) '+OBL+'</label><input id="aM" inputmode="numeric" oninput="fmt(this)">'+
+  '<div class="fila"><div><label>Motivo '+OBL+'</label><input id="aMo"></div><div><label>Autorizó '+OBL+'</label><input id="aA"></div></div>'+
+  '<button class="btn" id="aB" style="margin-top:10px" onclick="guardarAjuste()">💾 Guardar ajuste</button><div id="aMsg"></div></form>';}
+// perdón de cuota: al elegir la cuota se pone su monto (se puede cambiar)
+function ajMes(){if(sa(val('aT')).indexOf('perdon de cuota')!==0)return;var m=val('aMes'),c=F.cuotas.filter(function(x){return String(x.concepto).indexOf(m)>=0;})[0];
+ if(c&&el('aM'))el('aM').value=Number(c.monto).toLocaleString('es-PY');}
 function ajTipo(){var t=sa(val('aT')),pc=t.indexOf('perdon de cuota')===0,ds=t.indexOf('descuento')===0;
  el('aMesD').style.display=pc||ds?'block':'none';
- el('aML').innerHTML='Monto (Gs.)'+(pc?' <span class="ayuda">(vacío = la cuota entera)</span>':(ds?' <span class="ayuda">(si elegís la cuota, se descuenta de esa)</span>':''));}
+ el('aML').innerHTML='Monto (Gs.) '+OBL+(pc?' <span class="ayuda">(se pone el monto de la cuota elegida)</span>':(ds?' <span class="ayuda">(se descuenta de la cuota elegida)</span>':''));ajMes();}
 function guardarAjuste(){var t=val('aT'),m=el('aMsg'),monto=num(val('aM')),mes=el('aMesD').style.display==='block'?val('aMes'):'';
  if(!t){m.innerHTML='<div class="err">Elegí el tipo.</div>';return;}
- if(sa(t).indexOf('perdon de cuota')===0&&!mes){m.innerHTML='<div class="err">Elegí de qué cuota.</div>';return;}
- if(!monto&&sa(t).indexOf('perdon de cuota')!==0){m.innerHTML='<div class="err">Falta el monto.</div>';return;}
+ if(el('aMesD').style.display==='block'&&!mes){m.innerHTML='<div class="err">Elegí de qué cuota.</div>';return;}
+ if(!monto){m.innerHTML='<div class="err">Falta el monto.</div>';return;}
+ if(!val('aMo').trim()){m.innerHTML='<div class="err">Escribí el motivo.</div>';return;}
+ if(!val('aA').trim()){m.innerHTML='<div class="err">Escribí quién autorizó.</div>';return;}
  if(!confirm(F.nombre+':\n'+t+(mes?' de la cuota '+mes:'')+(monto?' por '+gs(monto):' (cuota entera)')+'\n\n¿Confirmás?'))return;
  var b=el('aB');b.disabled=true;b.textContent='Guardando…';
  pedir('ajuste',{id:F.id,tipo:t,monto:monto||'',mes:mes,motivo:val('aMo'),autorizo:val('aA'),nonce:Date.now()+'-'+Math.random().toString(36).slice(2)},
