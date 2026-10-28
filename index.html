@@ -66,6 +66,8 @@ function estable(o){if(Array.isArray(o))return '['+o.map(estable).join(',')+']';
  return JSON.stringify(o);}
 function haceCuanto(t){var m=Math.round((Date.now()-new Date(t).getTime())/60000);return isNaN(m)?'':(m<1?'recién':m<60?'hace '+m+' min':'hace '+Math.round(m/60)+' h');}
 function marca(h){var m=el('sbMarca');if(m)m.innerHTML=h;}
+function numBusca(q,nums){var d=String(q).replace(/\D/g,'');if(d.length<4||/[a-záéíóúñ]/i.test(q))return false;d=d.replace(/^595/,'').replace(/^0+/,'');if(d.length<3)return false;
+ return String(nums||'').split(' ').some(function(t){return t&&t.indexOf(d)>=0;});}   // 🔎 buscar por CI o celular
 function el(i){return document.getElementById(i);}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function sa(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
@@ -114,7 +116,7 @@ cargar();
 function filtrar(){
  var q=sa(el('q').value.trim()),r=el('res');
  if(!L||q.length<2){r.style.display='none';return;}
- var p=q.split(/\s+/),h=L.alumnos.filter(function(x){var t=sa(x[0]+' '+x[1]+' '+x[2]);return p.every(function(w){return t.indexOf(w)>=0;});}).slice(0,30);
+ var p=q.split(/\s+/),h=L.alumnos.filter(function(x){var t=sa(x[0]+' '+x[1]+' '+x[2]);return p.every(function(w){return t.indexOf(w)>=0;})||numBusca(q,x[5]);}).slice(0,30);
  r.innerHTML=h.length?h.map(function(x){return '<div onclick="ver(\''+esc(x[0])+'\')"><span>'+esc(x[1])+'<br><small>'+esc(x[0])+' · '+esc(x[2]||'sin grupo')+' · '+esc(x[3])+'</small></span>'+
   '<span class="badge '+(x[4]>0?'bR':'bG')+'">'+(x[4]>0?'Debe '+gs(x[4]):'Al día')+'</span></div>';}).join(''):'<div class="vacio">No hay coincidencias</div>';
  r.style.display='block';}
