@@ -119,10 +119,14 @@ function filtrar(){
   '<span class="badge '+(x[4]>0?'bR':'bG')+'">'+(x[4]>0?'Debe '+gs(x[4]):'Al día')+'</span></div>';}).join(''):'<div class="vacio">No hay coincidencias</div>';
  r.style.display='block';}
 
+// ◀ deslizar para atrás desde la ficha: vuelve al buscador
+var VOLVIENDO=false;
+window.addEventListener('popstate',function(e){var s=e.state;if(s&&s.ficha){VOLVIENDO=true;try{ver(s.ficha);}finally{VOLVIENDO=false;}return;}if(F||el('ficha').innerHTML)aInicio();});
 // 🏠 Inicio: borra de la pantalla la ficha del alumno (deudas, pagos, datos)
 function aInicio(){F=null;ULTIMO=null;el('ficha').innerHTML='';el('q').value='';el('res').style.display='none';el('bInicio').style.display='none';
  el('msg').textContent=L?L.alumnos.length+' alumnos. Escribí arriba para buscar.':'';pintarPend();window.scrollTo(0,0);el('q').focus();}
 function ver(id,mantener){
+ if(!mantener&&!VOLVIENDO&&window.history&&history.pushState){try{history.pushState({ficha:id},'');}catch(e){}}
  el('res').style.display='none';el('q').blur();el('bInicio').style.display='inline-block';
  if(!mantener)ULTIMO=null;
  el('ficha').innerHTML='';el('msg').textContent='Cargando…';
