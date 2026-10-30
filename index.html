@@ -43,7 +43,7 @@ h1 .tit{cursor:pointer;-webkit-tap-highlight-color:transparent}h1 .tit:active{op
 <header><h1><b class="tit" onclick="aInicio()" title="Ir al inicio">💵 Pagos <span>Gauss</span></b><button id="bInicio" onclick="aInicio()">🏠 Inicio</button></h1>
 <input id="q" placeholder="Buscá al alumno por nombre, apellido o ID…" autocomplete="off" oninput="filtrar()">
 <div id="res"></div></header>
-<main><div id="pend"></div><div id="ing"></div><div id="ficha"></div><div id="msg">Cargando…</div></main>
+<main><div id="cola"></div><div id="pend"></div><div id="ing"></div><div id="ficha"></div><div id="msg">Cargando…</div></main>
 <script>
 var API='https://script.google.com/macros/s/AKfycbzPNqOlPMgP1lme__szBCxU4kzz7fSJ3PxLxUZu_CcywI5ftsESe6e7hL63z1Xp7M6U/exec';
 var PIN='';try{PIN=localStorage.getItem('gaussPinSec')||'';}catch(e){}
@@ -97,7 +97,7 @@ function pedirPin(m){
 function entrar(){PIN=el('pin').value.trim();guardado('gaussPinSec',PIN);el('ficha').innerHTML='';cargar();}
 
 function cargar(){el('msg').textContent='Cargando alumnos…';
- function listo(){if(!F)el('msg').textContent=L.alumnos.length+' alumnos. Escribí arriba para buscar.';el('q').focus();cargarPend();cargarIng();}
+ function listo(){if(!F)el('msg').textContent=L.alumnos.length+' alumnos. Escribí arriba para buscar.';el('q').focus();cargarPend();cargarIng();colaPoll();}
  sbLeer('pagosLista','todo',function(d){L=d;listo();
    // confirma con la planilla sin hacer esperar
    pedir('lista',{},function(d2){L=d2;if(el('res').style.display==='block')filtrar();},function(e){if(String(e.message||'').indexOf('PIN:')>=0)error(e);});},
@@ -190,6 +190,7 @@ function colorEstado(e){return e==='Sin costo'?'b':e==='Pagado'||e==='Perdonada'
 function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
  if(L){var lx=L.alumnos.filter(function(y){return y[0]===D.id;})[0];if(lx)lx[4]=D.deuda;}
  var h='';
+ if(colaAbierta(D.id))h+='<div class="y" style="border-radius:10px;padding:10px 12px;margin-bottom:12px">⏳ <b>Hay un cobro cargándose para este alumno.</b> La deuda de abajo todavía no lo incluye; se actualiza sola en unos segundos.</div>';
  if(ULTIMO&&ULTIMO.id===D.id&&ULTIMO.msg)h+='<div class="ok"><b>✅ '+esc(ULTIMO.msg)+'</b></div>';
  else if(ULTIMO&&ULTIMO.id===D.id)h+='<div class="ok">'+(ULTIMO.fila?'<b>✅ Pago de '+gs(ULTIMO.monto)+' guardado en CAJA ('+(ULTIMO.filas&&ULTIMO.filas.length>1?'filas '+ULTIMO.filas.join(' y ')+': una por cada medio':'fila '+ULTIMO.fila)+').</b>':'')+
   (ULTIMO.perdon?'<div><b>✂️ Multa perdonada: '+gs(ULTIMO.perdon)+'</b> (anotada en AJUSTES).</div>':'')+
@@ -530,6 +531,7 @@ function perdonar(){var on=el('pm').checked;el('pmBox').style.display=on?'block'
 var FORZAR=false;
 function guardar(ev){if(ev)ev.preventDefault();
  var D=F,monto=num(val('mo')),pd=perdon(),m=el('fm'),P=monto>0?partesDatos():null;
+ if(colaAbierta(D.id)){m.innerHTML='<div class="err">⏳ Este alumno tiene un cobro cargándose en la planilla. Esperá unos segundos a que termine (la deuda se actualiza sola) y recién ahí cargá otro.</div>';return;}
  if(!(monto>0)&&!(pd>0)){m.innerHTML='<div class="err">Escribí el monto.</div>';return;}
  if(pd>D.multas){m.innerHTML='<div class="err">No se puede perdonar más que la multa que debe ('+gs(D.multas)+').</div>';return;}
  if(monto>0&&L.hay.medio&&!val('me')){m.innerHTML='<div class="err">Elegí el medio de pago.</div>';return;}
@@ -546,13 +548,79 @@ function guardar(ev){if(ev)ev.preventDefault();
  var d={id:D.id,monto:monto,fecha:val('f'),fechaPago:val('fp2')&&val('fp2')!==val('f')?val('fp2'):'',medio:val('me'),tipo:val('ti'),cobro:val('co'),proc:val('pr'),
   tipoComp:val('tc'),comp:val('cm'),obs:val('ob'),forzar:FORZAR?'1':'',partes:P?JSON.stringify(P):'',cargIng:el('ci')&&el('ci').checked?'1':'',
   factRuc:sa(val('tc'))==='factura'?(factCambios('pf').ruc||''):'',factRazon:sa(val('tc'))==='factura'?(factCambios('pf').razon||''):'',factCorreo:sa(val('tc'))==='factura'?(factCambios('pf').correo||''):'',perdon:pd,autorizo:val('pmA'),entregado:el('en')&&el('en').checked?'1':'',nonce:Date.now()+'-'+Math.random().toString(36).slice(2)};
- pedir('pagar',d,function(r){FORZAR=false;ULTIMO={id:D.id,fila:r.fila,filas:r.filas,clave:r.clave,monto:monto,perdon:r.perdon||0};
-   if(r.ficha&&r.ficha.id===D.id){el('msg').textContent='';pintar(r.ficha);setTimeout(function(){cargarPend();cargarIng();},1500);}else{cargarPend();cargarIng();ver(D.id,true);}},
-  function(e){b.disabled=false;b.textContent='💾 Guardar pago';var t=String(e.message||e);
+ var fallo=function(e){b.disabled=false;b.textContent='💾 Guardar pago';var t=String(e.message||e);
    if(t.indexOf('PIN:')>=0){error(e);return;}
    if(t.indexOf('REPETIDA:')===0){if(confirm(t.replace('REPETIDA: ','')+'\n\n¿Guardar el pago igual?')){FORZAR=true;guardar(null);}return;}
-   FORZAR=false;m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';});
+   FORZAR=false;m.innerHTML='<div class="err">⚠️ '+esc(t)+'</div>';};
+ var directo=function(){pedir('pagar',d,function(r){FORZAR=false;ULTIMO={id:D.id,fila:r.fila,filas:r.filas,clave:r.clave,monto:monto,perdon:r.perdon||0};
+   if(r.ficha&&r.ficha.id===D.id){el('msg').textContent='';pintar(r.ficha);setTimeout(function(){cargarPend();cargarIng();},1500);}else{cargarPend();cargarIng();ver(D.id,true);}},fallo);};
+ // 📥 bandeja: el cobro queda a salvo en Supabase en menos de un segundo y la planilla lo carga enseguida
+ sbRpc('gauss_cobro_enviar',{p_pin:PIN,p_id:d.nonce,p_payload:Object.assign({nombre:D.nombre},d)},function(r){
+   if(r&&r.ok)encolado(D,d,monto);else directo();
+ },directo);
 }
+// ---- 📥 BANDEJA DE COBROS: el cobro se guarda en Supabase y la planilla lo carga al toque
+var COLA=[],COLA_IDS=[],COLA_T=null,OKS=[];
+function sbRpc(fn,body,ok,mal,ms){var hecho=false,to=setTimeout(function(){if(!hecho){hecho=true;mal();}},ms||6000);
+ fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)})
+ .then(function(r){return r.json();})
+ .then(function(d){if(hecho)return;hecho=true;clearTimeout(to);ok(d);})
+ .catch(function(){if(hecho)return;hecho=true;clearTimeout(to);mal();});}
+function colaAbierta(id){return COLA.some(function(x){return x.alumno_id===id&&(x.estado==='pendiente'||x.estado==='aplicando');});}
+function encolado(D,d,monto){FORZAR=false;var b=el('bg');if(b){b.disabled=false;b.textContent='💾 Guardar pago';}
+ COLA_IDS.push(d.nonce);COLA.push({id:d.nonce,alumno_id:D.id,nombre:D.nombre,monto:monto,estado:'pendiente',edad:0});
+ ULTIMO=null;pintar(D);pintarCola();window.scrollTo(0,0);
+ pedir('bandeja',{},function(){},function(){});      // avisa a la planilla que hay algo para cargar
+ colaSig(1500);}
+function colaSig(ms){clearTimeout(COLA_T);COLA_T=setTimeout(colaPoll,ms||(COLA.length?2500:30000));}
+function colaPoll(){clearTimeout(COLA_T);if(!PIN)return;
+ if(document.hidden&&!COLA.length){colaSig();return;}
+ var ids=COLA_IDS.slice();COLA.forEach(function(x){if(ids.indexOf(x.id)<0)ids.push(x.id);});
+ sbRpc('gauss_cobros_abiertos',{p_pin:PIN,p_ids:ids},function(r){
+   if(!r||!r.ok){colaSig();return;}
+   var abiertas=[];
+   (r.filas||[]).forEach(function(x){
+     if(x.estado==='aplicado'){if(ids.indexOf(x.id)>=0)colaAplicado(x);}
+     else if(x.estado!=='descartado')abiertas.push(x);
+   });
+   COLA=abiertas;COLA_IDS=COLA_IDS.filter(function(i){return abiertas.some(function(x){return x.id===i;});});
+   pintarCola();colaSig();
+ },function(){colaSig();});}
+function colaAplicado(x){COLA_IDS=COLA_IDS.filter(function(i){return i!==x.id;});
+ COLA=COLA.filter(function(y){return y.id!==x.id;});
+ if(F&&F.id===x.alumno_id){
+   ULTIMO={id:x.alumno_id,fila:x.fila,filas:x.filas||[],clave:x.clave||'',monto:Number(x.monto)||0,perdon:Number(x.perdon)||0};
+   ver(x.alumno_id,true);
+ }else{
+   var o={id:x.alumno_id,texto:(x.nombre||x.alumno_id)+' · '+gs(x.monto)};OKS.push(o);
+   setTimeout(function(){OKS=OKS.filter(function(z){return z!==o;});pintarCola();},20000);
+ }
+ cargarPend();cargarIng();}
+function colaAccion(id,que){
+ if(que==='descartar'&&!confirm('¿Descartar este cobro? NO se va a cargar en la planilla.'))return;
+ sbRpc('gauss_cobro_accion',{p_pin:PIN,p_id:id,p_que:que},function(r){
+   if(r&&r.ok){if(que!=='descartar'){if(COLA_IDS.indexOf(id)<0)COLA_IDS.push(id);pedir('bandeja',{},function(){},function(){});}colaPoll();}
+   else alert('⚠️ '+((r&&r.error)||'No se pudo.'));
+ },function(){alert('⚠️ No pude conectar. Probá de nuevo.');});}
+function pintarCola(){var b=el('cola');if(!b)return;var h='';
+ COLA.forEach(function(x){
+  var nom=esc(x.nombre||x.alumno_id),id=esc(x.id);
+  if(x.estado==='error'){var rep=String(x.error||'').indexOf('REPETIDA:')===0;
+   h+='<div class="card r"><b>🛑 No se pudo cargar en la planilla</b><div style="margin-top:4px"><b>'+nom+'</b> · '+gs(x.monto)+'</div>'+
+    '<div class="err" style="margin-top:4px">'+esc(String(x.error||'').replace(/^REPETIDA:\s*/,''))+'</div>'+
+    '<div class="ayuda" style="margin-top:4px">El cobro está guardado a salvo: no se perdió.</div>'+
+    '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
+    (rep?'<button class="mini" style="font-size:14px;padding:8px 12px" onclick="colaAccion(\''+id+'\',\'forzar\')">Cargarlo igual</button>':'')+
+    '<button class="mini" style="font-size:14px;padding:8px 12px" onclick="colaAccion(\''+id+'\',\'reintentar\')">🔁 Reintentar</button>'+
+    '<button class="mini" style="font-size:14px;padding:8px 12px" onclick="colaAccion(\''+id+'\',\'descartar\')">🗑️ Descartar</button>'+
+    '<button class="mini" style="font-size:14px;padding:8px 12px" onclick="ver(\''+esc(x.alumno_id)+'\')">Ver alumno</button></div></div>';
+  }else{
+   h+='<div class="card y"><b>⏳ Cargándose en la planilla…</b> <span>'+nom+' · '+gs(x.monto)+'</span>'+
+    ((Number(x.edad)||0)>180?'<div class="ayuda" style="margin-top:4px">Está tardando más de lo normal. El cobro está guardado a salvo: <b>no lo cargues de nuevo</b>. Se carga solo apenas la planilla se libere.</div>':
+     '<div class="ayuda" style="margin-top:4px">Guardado a salvo. Unos segundos más.</div>')+'</div>';}
+ });
+ OKS.forEach(function(o){h+='<div class="card g" style="cursor:pointer" onclick="ver(\''+esc(o.id)+'\')">✅ <b>Ya está en la planilla:</b> '+esc(o.texto)+' <span style="color:#1155cc">→ abrir</span></div>';});
+ b.innerHTML=h;}
 function cargarLista(){pedir('lista',{},function(d){L=d;},function(){});}
 function comp(fila,clave,dest,btn){
  btn.disabled=true;var txt=btn.textContent;btn.textContent='⏳';if(btn.classList.contains('btn'))btn.textContent='Generando… (unos segundos)';
