@@ -197,9 +197,10 @@ function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
   '<div class="ayuda">La deuda de abajo ya incluye este pago. La hoja DEUDAS de la planilla se actualiza sola en 1 minuto.</div>'+
   (ULTIMO.fila?'<div style="margin-top:8px"><button class="btn btn2" id="bcU" onclick="comp('+ULTIMO.fila+',\''+esc(ULTIMO.clave)+'\',\'cU\',this)">🧾 Generar comprobante</button></div><div id="cU"></div>':'')+'</div>';
  h+='<div class="card"><p class="nom">'+esc(D.nombre)+'</p><div class="sub">'+esc(D.id)+' · '+esc(D.grupo||'sin grupo')+' · '+esc(D.situacion)+'</div>'+
+  (D.avisoSalida?'<div class="sub">📨 Avisó que salía el <b>'+esc(D.avisoSalida)+'</b></div>':'')+
   (D.revisar&&D.revisar.length?'<div class="y" style="border-radius:8px;padding:8px 10px;margin:8px 0">🔔 <b>Para revisar</b> (lo cargó el CSA): '+D.revisar.map(function(x){return esc(x.detalle);}).join(' · ')+
    '<div class="ayuda">Resolvelo desde el panel de secretaría → 🔔 Para revisar.</div></div>':'')+
-  (D.ultimaVez?'<div class="sub">🙋 Vino por última vez el <b>'+esc(D.ultimaVez)+'</b></div>':'')+
+  '<div class="sub">🙋 Última vez que vino: <b>'+(D.ultimaVez?esc(D.ultimaVez):'sin dato')+'</b></div>'+
   (D.inicioGauss?'<div class="sub">📅 En Gauss desde el <b>'+esc(D.inicioGauss)+'</b>'+(D.recorrido&&D.recorrido.length>1&&D.inicioGrupo&&D.inicioGrupo!==D.inicioGauss?' · en '+esc(D.grupo)+' desde el '+esc(D.inicioGrupo):'')+'</div>':'')+
   (D.recorrido&&D.recorrido.length>1?'<div class="sub" style="font-size:13px">Grupos: '+D.recorrido.map(function(r){return esc(r.grupo)+' ('+esc(r.inicio||'?')+(r.salida?' → '+esc(r.salida):'')+')';}).join(' · ')+'</div>':'')+
   (D.plan?'<div class="sub">Plan: '+esc(D.plan)+'</div>':'')+
@@ -212,6 +213,7 @@ function pintar(D){F=D;TOCADO=false;el('msg').textContent='';
   k('Próximo vencimiento',D.prox?D.prox.venc+' · '+gs(D.prox.monto):'')+
   (D.favor>0?k('Saldo a favor',gs(D.favor),'g'):'')+
   (D.ultima?k('Última cuota',D.ultima.venc+' · '+gs(D.ultima.monto),D.ultima.dias<28&&D.ultima.completa?'y':''):'')+'</div>'+
+  (D.avisoPlan?'<div class="y" style="border-radius:8px;padding:10px;margin-top:10px">⚠️ <b>Falta personalizar su plan de cuotas:</b> '+esc(D.avisoPlan)+'</div>':'')+
   (D.ultima&&D.ultima.dias<28?(D.ultima.completa
    ?'<div class="y" style="border-radius:8px;padding:10px;margin-top:10px">⚠️ <b>Ojo con la última cuota:</b> vence el '+esc(D.ultima.venc)+' y el grupo termina el '+esc(D.ultima.fin)+
     ', o sea que cubre solo <b>'+D.ultima.dias+' días</b>, y se está cobrando completa ('+gs(D.ultima.monto)+').'
@@ -307,8 +309,8 @@ function cartelesEspera(){var E=(F&&F.esperas)||[];if(!E.length)return '';
   otras.map(function(e){return '<div style="font-size:13px;border-top:1px solid #eee;padding:5px 0">'+esc(e.fecha)+' · '+esc(e.motivo)+' · cuotas '+esc(e.desde)+(e.hasta!==e.desde?' a '+esc(e.hasta):'')+' · hasta '+esc(e.limite)+' · <b>'+esc(e.estado)+'</b>'+
    (e.hist?'<div class="ayuda" style="white-space:pre-line">'+esc(e.hist)+'</div>':'')+'</div>';}).join('')+'</div>';
  return h;}
-function mesDeConcepto(c){var m=String(c).match(/Cuota\s+([a-z]{3})-(\d{4})/i);if(!m)return '';var i=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'].indexOf(m[1].toLowerCase());return i<0?'':m[2]+'-'+('0'+(i+1)).slice(-2);}
-function formEspera(){var M=F.mesesCuotas||[],ve=F.cuotas.filter(function(c){return c.estado==='Vencido';}),d=ve.length?mesDeConcepto(ve[0].concepto):'';
+function mesDeConcepto(c){var m=String(c).match(/Cuota\s+(?:\d+\s*·\s*)?([a-z]{3})-(\d{4})/i);if(!m)return '';var i=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'].indexOf(m[1].toLowerCase());return i<0?'':m[2]+'-'+('0'+(i+1)).slice(-2);}
+function formEspera(){var M=F.mesesCuotas||[],ve=F.cuotas.filter(function(c){return c.estado==='Vencido';}),d=ve.length?mesDeConcepto(ve[0].cod||ve[0].concepto):'';
  var hoy=new Date(),actual=hoy.getFullYear()+'-'+('0'+(hoy.getMonth()+1)).slice(-2);if(!d)d=actual;
  var op=function(sel){return M.map(function(m){return '<option value="'+m.v+'"'+(m.v===sel?' selected':'')+'>'+esc(m.t)+'</option>';}).join('');};
  el('fe').innerHTML='<form onsubmit="return false" style="background:#fff8e1;border-radius:8px;padding:10px;margin-top:8px">'+
@@ -338,7 +340,7 @@ function extender(fila){var L=val('xL'+fila),m=el('xM'+fila);if(!L){m.innerHTML=
 function anularEspera(fila){if(!confirm('¿Anular esta espera?\nEsas cuotas vuelven a generar multa desde su vencimiento.'))return;
  pedir('esperaAnular',{id:F.id,fila:fila,quien:guardado('gaussSecQuien')},function(r){ULTIMO={id:F.id,msg:r.msg};ver(F.id,true);},function(e){alert('⚠️ '+(e.message||e));});}
 function formAjuste(){var tipos=(L.opciones.ajustes&&L.opciones.ajustes.length)?L.opciones.ajustes:['Descuento','Perdón de cuota','Perdón de multa','Recargo','Otro'];
- var meses=F.cuotas.map(function(c){var m=String(c.concepto).match(/Cuota\s+([a-z]{3}-\d{4})/i);return m?m[1]:'';}).filter(function(x,i,a){return x&&a.indexOf(x)===i;});
+ var meses=F.cuotas.map(function(c){var m=String(c.cod||c.concepto).match(/Cuota\s+(?:\d+\s*·\s*)?([a-z]{3}-\d{4})/i);return m?m[1]:'';}).filter(function(x,i,a){return x&&a.indexOf(x)===i;});
  el('fa').innerHTML='<form onsubmit="return false" style="background:#f3f3f3;border-radius:8px;padding:10px;margin-top:8px">'+
   '<label>Tipo de ajuste '+OBL+'</label><select id="aT" onchange="ajTipo()">'+opts(tipos,'',true)+'</select>'+
   '<div id="aMesD" style="display:none"><label>¿De qué cuota? '+OBL+'</label><select id="aMes" onchange="ajMes()">'+opts(meses,'',true)+'</select>'+
@@ -347,7 +349,7 @@ function formAjuste(){var tipos=(L.opciones.ajustes&&L.opciones.ajustes.length)?
   '<div class="fila"><div><label>Motivo '+OBL+'</label><input id="aMo"></div><div><label>Autorizó '+OBL+'</label><input id="aA"></div></div>'+
   '<button class="btn" id="aB" style="margin-top:10px" onclick="guardarAjuste()">💾 Guardar ajuste</button><div id="aMsg"></div></form>';}
 // perdón de cuota: al elegir la cuota se pone su monto (se puede cambiar)
-function ajMes(){if(sa(val('aT')).indexOf('perdon de cuota')!==0)return;var m=val('aMes'),c=F.cuotas.filter(function(x){return String(x.concepto).indexOf(m)>=0;})[0];
+function ajMes(){if(sa(val('aT')).indexOf('perdon de cuota')!==0)return;var m=val('aMes'),c=F.cuotas.filter(function(x){return String(x.cod||x.concepto).indexOf(m)>=0;})[0];
  if(c&&el('aM'))el('aM').value=Number(c.monto).toLocaleString('es-PY');}
 function ajTipo(){var t=sa(val('aT')),pc=t.indexOf('perdon de cuota')===0,ds=t.indexOf('descuento')===0;
  el('aMesD').style.display=pc||ds?'block':'none';
